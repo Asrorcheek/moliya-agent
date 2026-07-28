@@ -15,8 +15,19 @@ muzlatiladi. O'zgartirishlar keyin alohida change request sifatida baholanadi.
 - API kalitlari va Google credentiallar server secretlarida saqlanadi.
 - Faqat allowlistdagi Telegram foydalanuvchilar agentdan foydalana oladi.
 - Har bir draft, tasdiq, rad etish va yozuv audit-logda saqlanadi.
+- Hisob valyutalari UZS va USD.
+- Hisob vaqti Asia/Tashkent (UTC+5).
+- Tranzaksiyalar alohida ledgerda saqlanadi, Kassa kunlik avtomatik jamlanadi.
+- To'lov turi aytilmasa agent aniqlashtirish so'raydi.
+- Tasdiqlangan xato reversal va yangi to'g'ri yozuv orqali tuzatiladi.
+- Botdan 3 foydalanuvchi foydalanadi; rollari hali aniqlanmagan.
+- Hozir integratsiya qilinadigan boshqa kompaniya dasturi yo'q.
 
 ## 2. Mijozdan olinadigan fayl
+
+2026-07-28 kuni olingan `apteka_biznes.xlsx` faqat savol-javob fayli:
+unda `Sheet1` nomli bitta tab bor, moliyaviy ustunlar, formulalar va namunaviy
+tranzaksiyalar yo'q. Haqiqiy kassa/hisobot shabloni hali olinmagan.
 
 - [ ] `Apteka Biznes` workbook'ining shaxsiy ma'lumotlari tozalangan `.xlsx` nusxasi
 - [ ] Formulalar saqlangan
@@ -30,10 +41,19 @@ muzlatiladi. O'zgartirishlar keyin alohida change request sifatida baholanadi.
 ### 3.1. Asosiy parametrlar
 
 - Kompaniya nomi:
-- Asosiy valyuta: UZS / boshqa:
-- Hisob sanasi va vaqti: Asia/Tashkent / boshqa:
-- Bir Telegram botdan nechta odam foydalanadi:
-- Foydalanuvchi rollari: egasi / buxgalter / kassir / boshqa:
+- Asosiy valyutalar: UZS va USD
+- Hisobot uchun asosiy/base valyuta: aniqlanmagan
+- Hisob sanasi va vaqti: Asia/Tashkent (UTC+5)
+- Bir Telegram botdan foydalanadigan odamlar: 3
+- Foydalanuvchi rollari va huquqlari: aniqlanmagan
+
+USD uchun ochiq savollar:
+
+- USD alohida kassa sifatida yuritiladimi:
+- Hisobot UZS'ga konvertatsiya qilinadimi:
+- Kurs manbasi:
+- Qaysi sana kursi olinadi:
+- Kursni foydalanuvchi qo'lda bera oladimi:
 
 ### 3.2. Sheets'dagi qator modeli
 
@@ -41,7 +61,7 @@ Quyidagilardan bittasi tanlanadi:
 
 - [ ] Har bir tasdiqlangan operatsiya — alohida qator
 - [ ] Har bir kun — bitta jamlangan qator
-- [ ] Ikkalasi: tranzaksiyalar alohida ledgerda, kunlik Kassa avtomatik jamlanadi
+- [x] Ikkalasi: tranzaksiyalar alohida ledgerda, kunlik Kassa avtomatik jamlanadi
 
 Tavsiya: uchinchi variant. U audit, P&L, Cash Flow va Balance uchun to'g'riroq.
 
@@ -75,7 +95,7 @@ Keraklilarni belgilang:
 Muhim qoida:
 
 - [ ] `Tushum = Naqd + Karta + O'tkazma` bo'lishi shart
-- [ ] To'lov turi aytilmasa agent aniqlashtirish so'raydi
+- [x] To'lov turi aytilmasa agent aniqlashtirish so'raydi
 - [ ] To'lov turi aytilmasa `Noma'lum` sifatida draft ko'rsatishi mumkin
 
 ### 3.5. Sana qoidalari
@@ -99,7 +119,7 @@ Tasdiq sifatida qabul qilinadigan javoblar:
 Tasdiqlangan xatoni tuzatish:
 
 - [ ] Eski yozuvni tahrirlash
-- [ ] Reversal yozuvi + yangi to'g'ri yozuv
+- [x] Reversal yozuvi + yangi to'g'ri yozuv
 
 Tavsiya: reversal, chunki audit tarixi saqlanadi.
 
@@ -151,13 +171,9 @@ Balance uchun boshlang'ich qoldiqlar sanasi:
 
 ### 3.10. Mavjud dastur integratsiyasi
 
-- Dastur nomi:
-- API hujjati mavjudmi:
-- Webhook mavjudmi:
-- Database'ga read-only ruxsat bormi:
-- CSV/Excel eksport mavjudmi:
-- Real vaqt integratsiyasida qaysi ma'lumotlar olinadi:
-- Qaysi tizim source of truth hisoblanadi:
+- Dastur nomi: mavjud dastur yo'q
+- API/Webhook/Database integratsiyasi: MVP scope'dan chiqarildi
+- Asosiy source of truth: aniqlanmagan (tavsiya: backend ledger)
 
 ## 4. Namunaviy xabarlar
 
@@ -192,13 +208,12 @@ Quyidagi holatlar albatta bo'lsin:
 - Normalized tranzaksiyalar ledgeri
 - Google Sheets test workbook
 - Oylik qisqa hisobot
-- Bitta egasi
+- 3 foydalanuvchi va role-based ruxsat
 
 ### Keyingi bosqich
 
 - Ovoz
 - Screenshot
-- Ko'p foydalanuvchi va rollar
 - Mijozlar bazasi
 - Debitor/kreditor
 - Mavjud dastur integratsiyasi
