@@ -1,0 +1,19 @@
+[Unit]
+Description=Moliya AI Agent backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/busin/moliya-agent
+EnvironmentFile=/home/busin/.hermes/moliya-agent.env
+ExecStart=/home/busin/moliya-agent/.venv/bin/moliya-api
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/busin/moliya-agent/data
+
+[Install]
+WantedBy=default.target

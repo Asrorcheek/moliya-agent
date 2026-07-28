@@ -1,0 +1,18 @@
+services:
+  moliya-agent:
+    build:
+      context: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MOLIYA_BIND_HOST: 0.0.0.0
+      MOLIYA_DB_PATH: /app/data/moliya.db
+    ports:
+      - "127.0.0.1:8088:8088"
+    volumes:
+      - moliya-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  moliya-data:
