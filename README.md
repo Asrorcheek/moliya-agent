@@ -10,7 +10,7 @@ tasdiq olgandan keyingina bitta Google Sheets fayliga yozadigan MVP.
 - `actor_id + source_id` va `Entry ID` orqali dublikat himoyasi.
 - SQLite audit/draft bazasi.
 - Bitta workbook ichidagi `Operatsiyalar` tabiga normalized ledger qatorlarini yozish.
-- Mavjud Kassa, P&L va Cash Flow shablonini ledger bilan bog'lash.
+- Mavjud P&L va Cash Flow shablonini ledger bilan bog'lash.
 - Oylik tushum, vazvrat, tannarx, xarajat va foyda xulosasi.
 - Hermes uchun `/moliya` skill va stdlib HTTP client.
 
