@@ -11,7 +11,8 @@ muzlatiladi. O'zgartirishlar keyin alohida change request sifatida baholanadi.
 - Matn bir yoki bir nechta moliyaviy operatsiyaga ajratiladi.
 - Google Sheets'ga yozishdan oldin egadan aniq tasdiq olinadi.
 - Har safar yangi workbook yaratilmaydi; bitta fixed workbook ID ishlatiladi.
-- Oylar uchun shu workbook ichida alohida tablar ishlatiladi.
+- Tasdiqlangan barcha operatsiyalar bitta `Operatsiyalar` ledgerida saqlanadi.
+- Mavjud oylik Kassa va hisobot varaqlari ledgerdan avtomatik jamlanadi.
 - API kalitlari va Google credentiallar server secretlarida saqlanadi.
 - Faqat allowlistdagi Telegram foydalanuvchilar agentdan foydalana oladi.
 - Har bir draft, tasdiq, rad etish va yozuv audit-logda saqlanadi.
@@ -25,16 +26,21 @@ muzlatiladi. O'zgartirishlar keyin alohida change request sifatida baholanadi.
 
 ## 2. Mijozdan olinadigan fayl
 
-2026-07-28 kuni olingan `apteka_biznes.xlsx` faqat savol-javob fayli:
-unda `Sheet1` nomli bitta tab bor, moliyaviy ustunlar, formulalar va namunaviy
-tranzaksiyalar yo'q. Haqiqiy kassa/hisobot shabloni hali olinmagan.
+2026-07-28 kuni `shablon .xlsx` haqiqiy moliyaviy shablon sifatida olindi.
+Unda 14 ta original varaq, jumladan Kassa, P&L, Cash Flow, Balance,
+Qarzdorlik va yordamchi varaqlar bor.
 
-- [ ] `Apteka Biznes` workbook'ining shaxsiy ma'lumotlari tozalangan `.xlsx` nusxasi
-- [ ] Formulalar saqlangan
-- [ ] Kamida bir oylik namunaviy ma'lumot qoldirilgan
-- [ ] Kassa, P&L, Cash Flow, Balance va yordamchi tablar saqlangan
-- [ ] Qaysi tablar AI tomonidan o'zgartirilishi mumkinligi belgilangan
-- [ ] Qaysi tablar faqat o'qish uchun ekanligi belgilangan
+- [x] Formulalar va original formatlar saqlangan
+- [x] Kamida bir oylik namunaviy ma'lumot qoldirilgan
+- [x] Kassa, P&L, Cash Flow, Balance va yordamchi tablar saqlangan
+- [x] AI faqat `Operatsiyalar` varag'iga yozadi
+- [x] Formulali hisobot varaqlari AI uchun faqat o'qish
+- [x] Asl fayl o'zgartirilmagan
+
+Ishchi nusxa: `/home/alex/Downloads/Apteka_Moliya_v2.xlsx`.
+Unga `Sozlamalar` va `Operatsiyalar` varaqlari qo'shildi. Buzilgan tashqi
+`IMPORTRANGE`, P&L'dagi `#REF!` formulalar, qarzdorlikdagi uzoq qatordagi
+`#REF!` va rentabellikdagi `#DIV/0!` natijalar tuzatildi.
 
 ## 3. Mijoz tasdiqlashi kerak bo'lgan asosiy qarorlar
 
@@ -69,14 +75,14 @@ Tavsiya: uchinchi variant. U audit, P&L, Cash Flow va Balance uchun to'g'riroq.
 
 Keraklilarni belgilang:
 
-- [ ] Tushum
-- [ ] Vazvrat
-- [ ] Xarajat
-- [ ] Tannarx
-- [ ] Debitor qarz
-- [ ] Debitor qarz to'lovi
-- [ ] Kreditor qarz
-- [ ] Kreditor qarz to'lovi
+- [x] Tushum
+- [x] Vazvrat
+- [x] Xarajat
+- [x] Tannarx
+- [x] Debitor qarz
+- [x] Debitor qarz to'lovi
+- [x] Kreditor qarz
+- [x] Kreditor qarz to'lovi
 - [ ] Kassaga pul kiritish
 - [ ] Kassadan pul olish
 - [ ] Bank va kassa o'rtasida o'tkazma
@@ -86,10 +92,10 @@ Keraklilarni belgilang:
 
 ### 3.4. To'lov turlari
 
-- [ ] Naqd
-- [ ] Karta
-- [ ] Bank o'tkazmasi
-- [ ] Aralash to'lov
+- [x] Naqd
+- [x] Karta
+- [x] Bank o'tkazmasi
+- [x] Aralash to'lov
 - [ ] Boshqa:
 
 Muhim qoida:
@@ -173,7 +179,8 @@ Balance uchun boshlang'ich qoldiqlar sanasi:
 
 - Dastur nomi: mavjud dastur yo'q
 - API/Webhook/Database integratsiyasi: MVP scope'dan chiqarildi
-- Asosiy source of truth: aniqlanmagan (tavsiya: backend ledger)
+- Asosiy source of truth: backend audit bazasi + tasdiqlangan
+  `Operatsiyalar` moliyaviy ledgeri
 
 ## 4. Namunaviy xabarlar
 
@@ -217,7 +224,7 @@ Quyidagi holatlar albatta bo'lsin:
 - Mijozlar bazasi
 - Debitor/kreditor
 - Mavjud dastur integratsiyasi
-- To'liq P&L, Cash Flow va Balance
+- To'liq Balance va Qarzdorlik avtomatizatsiyasi
 
 ## 6. Talablarni muzlatish
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -43,24 +42,10 @@ class InMemorySheetWriter:
         return written
 
 
-_UZBEK_MONTHS = {
-    1: "Yanvar",
-    2: "Fevral",
-    3: "Mart",
-    4: "Aprel",
-    5: "May",
-    6: "Iyun",
-    7: "Iyul",
-    8: "Avgust",
-    9: "Sentabr",
-    10: "Oktabr",
-    11: "Noyabr",
-    12: "Dekabr",
-}
-
 _HEADERS = [
     "Entry ID",
     "Sana",
+    "Oy",
     "Turi",
     "Summa (UZS)",
     "Naqd (UZS)",
@@ -73,11 +58,18 @@ _HEADERS = [
     "Source ID",
     "Tasdiqlagan",
     "Tasdiqlangan vaqt",
+    "Valyuta",
+    "Summa (valyutada)",
+    "Kurs",
+    "Holat",
+    "Bekor qilingan Entry ID",
 ]
+
+_LEDGER_TAB = "Operatsiyalar"
 
 
 class GoogleSheetsWriter:
-    """Idempotent normalized-ledger writer for one fixed spreadsheet."""
+    """Idempotent writer for the template's normalized Operatsiyalar ledger."""
 
     def __init__(
         self,
@@ -114,10 +106,6 @@ class GoogleSheetsWriter:
         )
 
     @staticmethod
-    def _tab_title(entry_date) -> str:
-        return f"Tranzaksiyalar {_UZBEK_MONTHS[entry_date.month]} {entry_date.year}"
-
-    @staticmethod
     def _quote_tab(title: str) -> str:
         return "'" + title.replace("'", "''") + "'"
 
@@ -139,7 +127,7 @@ class GoogleSheetsWriter:
         quoted = self._quote_tab(title)
         self._service.spreadsheets().values().update(
             spreadsheetId=self._spreadsheet_id,
-            range=f"{quoted}!A1:N1",
+            range=f"{quoted}!A1:T1",
             valueInputOption="RAW",
             body={"values": [_HEADERS]},
         ).execute()
@@ -156,6 +144,7 @@ class GoogleSheetsWriter:
         return [
             entry_id,
             draft.parsed.transaction_date.isoformat(),
+            draft.parsed.transaction_date.strftime("%Y-%m"),
             entry.kind.value,
             entry.amount_uzs,
             entry.payment_breakdown.cash_uzs,
@@ -168,35 +157,38 @@ class GoogleSheetsWriter:
             draft.source_id,
             confirmed_by,
             confirmed_at.isoformat(),
+            "UZS",
+            entry.amount_uzs,
+            1,
+            "confirmed",
+            "",
         ]
 
     def write_draft(
         self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime
     ) -> int:
-        grouped: dict[str, list[tuple[str, FinancialEntry]]] = defaultdict(list)
-        for index, entry in enumerate(draft.parsed.entries):
-            grouped[self._tab_title(draft.parsed.transaction_date)].append(
-                (f"{draft.id}:{index}", entry)
-            )
-
-        written = 0
+        title = _LEDGER_TAB
         try:
-            for title, candidates in grouped.items():
-                self._ensure_tab(title)
-                quoted = self._quote_tab(title)
-                existing_response = (
-                    self._service.spreadsheets()
-                    .values()
-                    .get(
-                        spreadsheetId=self._spreadsheet_id,
-                        range=f"{quoted}!A:A",
-                        majorDimension="COLUMNS",
-                    )
-                    .execute()
+            self._ensure_tab(title)
+            quoted = self._quote_tab(title)
+            existing_response = (
+                self._service.spreadsheets()
+                .values()
+                .get(
+                    spreadsheetId=self._spreadsheet_id,
+                    range=f"{quoted}!A:A",
+                    majorDimension="COLUMNS",
                 )
-                values = existing_response.get("values", [])
-                existing_ids = set(values[0][1:]) if values and values[0] else set()
-                rows = [
+                .execute()
+            )
+            values = existing_response.get("values", [])
+            existing_ids = set(values[0][1:]) if values and values[0] else set()
+            rows = []
+            for index, entry in enumerate(draft.parsed.entries):
+                entry_id = f"{draft.id}:{index}"
+                if entry_id in existing_ids:
+                    continue
+                rows.append(
                     self._row(
                         entry_id=entry_id,
                         draft=draft,
@@ -204,19 +196,16 @@ class GoogleSheetsWriter:
                         confirmed_by=confirmed_by,
                         confirmed_at=confirmed_at,
                     )
-                    for entry_id, entry in candidates
-                    if entry_id not in existing_ids
-                ]
-                if not rows:
-                    continue
-                self._service.spreadsheets().values().append(
-                    spreadsheetId=self._spreadsheet_id,
-                    range=f"{quoted}!A:N",
-                    valueInputOption="RAW",
-                    insertDataOption="INSERT_ROWS",
-                    body={"majorDimension": "ROWS", "values": rows},
-                ).execute()
-                written += len(rows)
+                )
+            if not rows:
+                return 0
+            self._service.spreadsheets().values().append(
+                spreadsheetId=self._spreadsheet_id,
+                range=f"{quoted}!A:T",
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"majorDimension": "ROWS", "values": rows},
+            ).execute()
         except Exception as exc:
             raise SheetWriteError(f"Google Sheets yozuvi bajarilmadi: {exc}") from exc
-        return written
+        return len(rows)

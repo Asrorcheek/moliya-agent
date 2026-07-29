@@ -10,7 +10,7 @@ from moliya_agent.domain import DraftStatus
 from moliya_agent.parser import RuleBasedParser
 from moliya_agent.repository import SQLiteDraftRepository
 from moliya_agent.service import InvalidTransitionError, MoliyaService
-from moliya_agent.sheets import InMemorySheetWriter
+from moliya_agent.sheets import GoogleSheetsWriter, InMemorySheetWriter, _HEADERS
 
 
 class MoliyaServiceTests(unittest.TestCase):
@@ -87,6 +87,27 @@ class MoliyaServiceTests(unittest.TestCase):
         report = self.service.monthly_report(actor_id="owner", month="2026-07")
         self.assertEqual(report["income_uzs"], 0)
         self.assertEqual(report["net_profit_uzs"], 0)
+
+    def test_google_sheet_row_matches_operatsiyalar_template(self) -> None:
+        draft = self._draft("telegram:ledger-row")
+        confirmed_at = datetime(
+            2026, 7, 28, 12, 5, tzinfo=ZoneInfo("Asia/Tashkent")
+        )
+
+        row = GoogleSheetsWriter._row(
+            entry_id=f"{draft.id}:0",
+            draft=draft,
+            entry=draft.parsed.entries[0],
+            confirmed_by="owner",
+            confirmed_at=confirmed_at,
+        )
+
+        self.assertEqual(len(row), len(_HEADERS))
+        self.assertEqual(row[1], "2026-07-28")
+        self.assertEqual(row[2], "2026-07")
+        self.assertEqual(row[3], "income")
+        self.assertEqual(row[15], "UZS")
+        self.assertEqual(row[18], "confirmed")
 
 
 if __name__ == "__main__":

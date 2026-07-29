@@ -9,13 +9,13 @@ tasdiq olgandan keyingina bitta Google Sheets fayliga yozadigan MVP.
 - `pending → confirmed/rejected` tasdiqlash holati.
 - `actor_id + source_id` va `Entry ID` orqali dublikat himoyasi.
 - SQLite audit/draft bazasi.
-- Har oy bir xil workbook ichida `Tranzaksiyalar <Oy> <Yil>` tabini yaratish.
-- Google Sheets'ga normalized ledger qatorlarini yozish.
+- Bitta workbook ichidagi `Operatsiyalar` tabiga normalized ledger qatorlarini yozish.
+- Mavjud Kassa, P&L va Cash Flow shablonini ledger bilan bog'lash.
 - Oylik tushum, vazvrat, tannarx, xarajat va foyda xulosasi.
 - Hermes uchun `/moliya` skill va stdlib HTTP client.
 
-Ovoz, screenshot, yakuniy “Apteka Biznes” ustun mappingi, mijozlar bazasi,
-PostgreSQL va to'liq Balance/Cash Flow keyingi bosqichda.
+Ovoz, screenshot, USD operatsiyalarining yakuniy kurs qoidasi, mijozlar bazasi,
+PostgreSQL va to'liq Balance/Qarzdorlik avtomatizatsiyasi keyingi bosqichda.
 
 ## Muhim arxitektura qoidasi
 
@@ -139,22 +139,34 @@ buyrug'ini chaqiradi.
 ## Google Sheets
 
 MVP bitta `GOOGLE_SPREADSHEET_ID` bilan ishlaydi va yangi workbook yaratmaydi.
-Har oy shu workbook ichida quyidagi normalized ledger tabini yaratadi:
+Tasdiqlangan barcha operatsiyalar shu workbook ichidagi bitta normalized ledger
+tabiga yoziladi:
 
 ```text
-Tranzaksiyalar Iyul 2026
+Operatsiyalar
 ```
 
 Ustunlar:
 
 ```text
-Entry ID | Sana | Turi | Summa | Naqd | Karta | O'tkazma | Tan narx |
-Kategoriya | Kontragent | Izoh | Source ID | Tasdiqlagan | Tasdiqlangan vaqt
+Entry ID | Sana | Oy | Turi | Summa (UZS) | Naqd | Karta | O'tkazma |
+Tan narx | Kategoriya | Kontragent | Izoh | Source ID | Tasdiqlagan |
+Tasdiqlangan vaqt | Valyuta | Summa (valyutada) | Kurs | Holat |
+Bekor qilingan Entry ID
 ```
 
-`Apteka Biznes` nusxasi kelgach, shu normalized ledgerdan mavjud Kassa/P&L
-shabloniga mapping qilinadi. Formulali hisobot tabini AI emas, tasdiqlangan
-shablon boshqaradi.
+Ishchi Excel nusxasi: `/home/alex/Downloads/Apteka_Moliya_v2.xlsx`.
+Asl `shablon .xlsx` o'zgartirilmagan. Ishchi nusxaga `Sozlamalar` va
+`Operatsiyalar` varaqlari qo'shilgan; P&L hamda Cash Flow formulalari ledgerga
+ulangan. Formulali hisobot tablarini AI emas, tasdiqlangan shablon boshqaradi.
+
+Shablonni qayta tayyorlash skripti:
+
+```text
+scripts/prepare_excel_template.py
+```
+
+U mavjud `Operatsiyalar` qatorlarini o'chirmaydi.
 
 ## VM deployment tartibi
 
