@@ -38,6 +38,14 @@ cd /home/alex/Downloads/moliya-agent
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
+Dependencylar o'rnatilgach, disposable SQLite bazasi va memory writer bilan
+lokal API + Hermes client acceptance testi:
+
+```bash
+cd /home/alex/Downloads/moliya-agent
+.venv/bin/python scripts/acceptance_test_local.py
+```
+
 ## Lokal API ishga tushirish
 
 Docker bilan:
