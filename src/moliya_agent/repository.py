@@ -49,6 +49,23 @@ class SQLiteDraftRepository:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status)"
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    id TEXT PRIMARY KEY,
+                    actor_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    details_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_audit_actor_created "
+                "ON audit_events(actor_id, created_at DESC)"
+            )
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> DraftRecord:
@@ -126,6 +143,76 @@ class SQLiteDraftRepository:
                 raise
         return self.get(draft_id)
 
+    def add_audit_event(
+        self,
+        *,
+        actor_id: str,
+        event_type: str,
+        entity_type: str,
+        entity_id: str,
+        details: dict[str, object] | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, object]:
+        event_id = str(uuid.uuid4())
+        created_at = now or datetime.now(UTC)
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO audit_events (
+                    id, actor_id, event_type, entity_type, entity_id,
+                    details_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    actor_id,
+                    event_type,
+                    entity_type,
+                    entity_id,
+                    json.dumps(details or {}, ensure_ascii=False),
+                    created_at.isoformat(),
+                ),
+            )
+        return {
+            "id": event_id,
+            "actor_id": actor_id,
+            "event_type": event_type,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "details": details or {},
+            "created_at": created_at.isoformat(),
+        }
+
+    def list_audit_events(
+        self, *, actor_id: str, limit: int = 50, offset: int = 0
+    ) -> tuple[list[dict[str, object]], int]:
+        with self._connect() as connection:
+            total = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM audit_events WHERE actor_id = ?", (actor_id,)
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                """
+                SELECT * FROM audit_events
+                WHERE actor_id = ?
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+                """,
+                (actor_id, limit, offset),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "actor_id": row["actor_id"],
+                "event_type": row["event_type"],
+                "entity_type": row["entity_type"],
+                "entity_id": row["entity_id"],
+                "details": json.loads(row["details_json"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ], total
+
     def set_status(
         self,
         draft_id: str,
@@ -155,3 +242,27 @@ class SQLiteDraftRepository:
                 (DraftStatus.CONFIRMED.value,),
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
+
+    def list_drafts(
+        self,
+        *,
+        actor_id: str,
+        status: DraftStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[DraftRecord], int]:
+        clauses = ["actor_id = ?"]
+        parameters: list[object] = [actor_id]
+        if status is not None:
+            clauses.append("status = ?")
+            parameters.append(status.value)
+        where = " AND ".join(clauses)
+        with self._connect() as connection:
+            total = connection.execute(
+                f"SELECT COUNT(*) FROM drafts WHERE {where}", parameters
+            ).fetchone()[0]
+            rows = connection.execute(
+                f"SELECT * FROM drafts WHERE {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                [*parameters, limit, offset],
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows], int(total)

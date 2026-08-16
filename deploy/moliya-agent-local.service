@@ -1,0 +1,18 @@
+[Unit]
+Description=Moliya Agent local backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/alex/busin/pet-project-2/skills/moliya-agent
+EnvironmentFile=/home/alex/busin/pet-project-2/skills/moliya-agent/.env
+Environment=PYTHONPATH=/home/alex/busin/pet-project-2/skills/moliya-agent/src
+ExecStart=/home/alex/busin/pet-project-2/skills/moliya-agent/.venv/bin/python -m moliya_agent.main
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

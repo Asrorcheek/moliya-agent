@@ -4,6 +4,8 @@ import json
 import re
 from datetime import date, timedelta
 from typing import Any, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from .domain import ParsedMessage
 
@@ -171,6 +173,97 @@ class OpenAIParser:
             return ParsedMessage.from_dict(payload)
         except (json.JSONDecodeError, ValueError) as exc:
             raise ParseError(f"OpenAI javobi moliyaviy sxemadan o'tmadi: {exc}") from exc
+
+
+def _extract_response_text(payload: dict[str, Any]) -> str:
+    direct = payload.get("output_text")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    parts: list[str] = []
+    for item in payload.get("output", []):
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        for content in item.get("content", []):
+            if isinstance(content, dict) and isinstance(content.get("text"), str):
+                parts.append(content["text"])
+    return "\n".join(parts).strip()
+
+
+def _json_from_model_text(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        payload = json.loads(cleaned[start : end + 1])
+    if not isinstance(payload, dict):
+        raise ValueError("AI javobi JSON obyekt emas")
+    return payload
+
+
+class HermesParser:
+    """Use the authenticated local Hermes gateway as the production parser."""
+
+    def __init__(
+        self,
+        *,
+        api_base: str,
+        api_key: str,
+        model: str = "hermes-agent",
+    ) -> None:
+        self._api_base = api_base.rstrip("/")
+        self._api_key = api_key
+        self._model = model
+
+    def parse(self, text: str, *, today: date) -> ParsedMessage:
+        if not text.strip():
+            raise ParseError("Bo'sh xabarni parse qilib bo'lmaydi")
+        prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            "Return one JSON object only. Do not use markdown and do not call tools.\n"
+            f"The exact JSON Schema is:\n{json.dumps(FINANCIAL_MESSAGE_SCHEMA)}\n\n"
+            f"Current business date (Asia/Tashkent): {today.isoformat()}\n"
+            f"Message:\n{text.strip()}"
+        )
+        request = Request(
+            f"{self._api_base}/responses",
+            method="POST",
+            data=json.dumps(
+                {
+                    "model": self._model,
+                    "input": prompt,
+                    "instructions": (
+                        "You are a deterministic financial message extractor. "
+                        "Return valid JSON only and never use tools."
+                    ),
+                    "conversation": f"moliya-parser-{today.isoformat()}",
+                    "store": False,
+                }
+            ).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urlopen(request, timeout=150) as response:
+                response_payload = json.load(response)
+        except HTTPError as exc:
+            raise ParseError(f"Hermes parser HTTP {exc.code}") from exc
+        except (URLError, TimeoutError) as exc:
+            raise ParseError("Hermes parserga ulanib bo'lmadi") from exc
+        try:
+            model_text = _extract_response_text(response_payload)
+            if not model_text:
+                raise ValueError("Hermes bo'sh javob berdi")
+            return ParsedMessage.from_dict(_json_from_model_text(model_text))
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ParseError(f"Hermes javobi moliyaviy sxemadan o'tmadi: {exc}") from exc
 
 
 _AMOUNT_RE = re.compile(

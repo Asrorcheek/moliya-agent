@@ -58,6 +58,13 @@ class MoliyaServiceTests(unittest.TestCase):
         self.assertTrue(second.already_confirmed)
         self.assertEqual(len(self.writer.rows), 2)
 
+        events, total = self.repository.list_audit_events(actor_id="owner")
+        self.assertEqual(total, 2)
+        self.assertEqual(
+            [event["event_type"] for event in events],
+            ["draft.confirmed", "draft.created"],
+        )
+
     def test_rejected_draft_cannot_be_confirmed(self) -> None:
         draft = self._draft()
         rejected = self.service.reject(actor_id="owner", draft_id=draft.id)

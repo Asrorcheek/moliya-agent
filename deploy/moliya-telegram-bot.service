@@ -1,0 +1,23 @@
+[Unit]
+Description=Moliya Telegram Bot
+After=network-online.target moliya-agent.service
+Wants=network-online.target
+Requires=moliya-agent.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/busin/moliya-agent
+EnvironmentFile=/home/busin/.hermes/moliya-agent.env
+EnvironmentFile=/home/busin/.hermes/moliya-telegram-bot.env
+Environment=MOLIYA_AGENT_URL=http://127.0.0.1:8088
+Environment=MOLIYA_TELEGRAM_STATE_FILE=/home/busin/moliya-agent/data/telegram-state.json
+ExecStart=/home/busin/moliya-agent/.venv/bin/moliya-telegram-bot
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/busin/moliya-agent/data
+
+[Install]
+WantedBy=default.target

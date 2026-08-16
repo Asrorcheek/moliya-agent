@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .config import Settings
-from .parser import OpenAIParser, RuleBasedParser
+from .parser import HermesParser, OpenAIParser, RuleBasedParser
 from .repository import SQLiteDraftRepository
 from .service import MoliyaService
 from .sheets import GoogleSheetsWriter, InMemorySheetWriter
@@ -14,6 +14,12 @@ def build_service(settings: Settings) -> MoliyaService:
             api_key=settings.openai_api_key or "",
             model=settings.openai_model,
             reasoning_effort=settings.openai_reasoning_effort,
+        )
+    elif settings.parser_mode == "hermes":
+        parser = HermesParser(
+            api_base=settings.hermes_api_base,
+            api_key=settings.hermes_api_key or "",
+            model=settings.hermes_model,
         )
     else:
         parser = RuleBasedParser()

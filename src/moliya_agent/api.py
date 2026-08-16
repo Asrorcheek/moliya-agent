@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Settings
-from .domain import DomainValidationError
+from .auth import InvalidSessionError, Principal, SessionManager
+from .domain import DomainValidationError, DraftStatus, EntryKind, PaymentMethod
 from .factory import build_service
 from .parser import ParseError
 from .repository import DraftNotFoundError
@@ -36,18 +40,42 @@ class ActionRequest(BaseModel):
     actor_id: str = Field(min_length=1, max_length=128)
 
 
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=256)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     service = build_service(resolved_settings)
     app = FastAPI(title="Moliya AI Agent", version="0.1.0")
+    sessions = SessionManager(resolved_settings.session_secret)
 
     def authenticate(
         x_moliya_token: Annotated[str | None, Header()] = None,
-    ) -> None:
-        if not x_moliya_token or not secrets.compare_digest(
+        moliya_session: Annotated[str | None, Cookie()] = None,
+    ) -> Principal:
+        if x_moliya_token and secrets.compare_digest(
             x_moliya_token, resolved_settings.internal_token
         ):
-            raise HTTPException(status_code=401, detail="Internal token noto'g'ri")
+            return Principal(actor_id="", username="internal", authentication="token")
+        if moliya_session:
+            try:
+                return sessions.verify(moliya_session)
+            except InvalidSessionError:
+                pass
+        raise HTTPException(status_code=401, detail="Autentifikatsiya talab qilinadi")
+
+    def actor_for(principal: Principal, requested_actor: str | None = None) -> str:
+        if principal.authentication == "session":
+            if requested_actor and requested_actor != principal.actor_id:
+                raise HTTPException(status_code=403, detail="Actor ruxsat etilmagan")
+            return principal.actor_id
+        if not requested_actor:
+            raise HTTPException(status_code=422, detail="actor_id talab qilinadi")
+        return requested_actor
 
     @app.exception_handler(DraftNotFoundError)
     async def draft_not_found_handler(_request, _exc):
@@ -80,10 +108,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "sheet_mode": resolved_settings.sheet_mode,
         }
 
+    @app.post("/v1/session")
+    def login(request: LoginRequest, response: Response) -> dict[str, str]:
+        username_matches = secrets.compare_digest(
+            request.username, resolved_settings.web_username
+        )
+        password_matches = secrets.compare_digest(
+            request.password, resolved_settings.web_password
+        )
+        if not (username_matches and password_matches):
+            raise HTTPException(status_code=401, detail="Login yoki parol noto'g'ri")
+        token = sessions.create(
+            username=resolved_settings.web_username,
+            actor_id=resolved_settings.web_actor_id,
+        )
+        response.set_cookie(
+            "moliya_session",
+            token,
+            max_age=sessions.lifetime_seconds,
+            httponly=True,
+            secure=resolved_settings.session_cookie_secure,
+            samesite="strict",
+            path="/",
+        )
+        return {
+            "username": resolved_settings.web_username,
+            "actor_id": resolved_settings.web_actor_id,
+        }
+
+    @app.get("/v1/session")
+    def current_session(principal: Principal = Depends(authenticate)) -> dict[str, str]:
+        return {"username": principal.username, "actor_id": principal.actor_id}
+
+    @app.delete("/v1/session")
+    def logout(response: Response) -> dict[str, bool]:
+        response.delete_cookie("moliya_session", path="/")
+        return {"logged_out": True}
+
     @app.post("/v1/drafts", dependencies=[Depends(authenticate)])
-    def create_draft(request: DraftRequest) -> dict[str, object]:
+    def create_draft(
+        request: DraftRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        actor_id = actor_for(principal, request.actor_id)
         draft = service.create_draft(
-            actor_id=request.actor_id,
+            actor_id=actor_id,
             source_id=request.source_id,
             text=request.text,
             received_at=request.received_at,
@@ -93,25 +162,139 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/v1/drafts/{draft_id}/confirm", dependencies=[Depends(authenticate)]
     )
-    def confirm(draft_id: str, request: ActionRequest) -> dict[str, object]:
-        result = service.confirm(actor_id=request.actor_id, draft_id=draft_id)
+    def confirm(
+        draft_id: str,
+        request: ActionRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        result = service.confirm(
+            actor_id=actor_for(principal, request.actor_id), draft_id=draft_id
+        )
         return result.to_dict()
 
     @app.post(
         "/v1/drafts/{draft_id}/reject", dependencies=[Depends(authenticate)]
     )
-    def reject(draft_id: str, request: ActionRequest) -> dict[str, object]:
+    def reject(
+        draft_id: str,
+        request: ActionRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
         return {
             "draft": service.reject(
-                actor_id=request.actor_id, draft_id=draft_id
+                actor_id=actor_for(principal, request.actor_id), draft_id=draft_id
             ).to_dict()
         }
 
     @app.get("/v1/reports/monthly", dependencies=[Depends(authenticate)])
-    def monthly_report(actor_id: str, month: str) -> dict[str, int | str]:
-        return service.monthly_report(actor_id=actor_id, month=month)
+    def monthly_report(
+        month: str,
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+    ) -> dict[str, int | str]:
+        return service.monthly_report(
+            actor_id=actor_for(principal, actor_id), month=month
+        )
+
+    @app.get("/v1/drafts", dependencies=[Depends(authenticate)])
+    def list_drafts(
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+        status: DraftStatus | None = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, object]:
+        items, total = service.list_drafts(
+            actor_id=actor_for(principal, actor_id),
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": [item.to_dict() for item in items], "total": total}
+
+    @app.get("/v1/drafts/{draft_id}", dependencies=[Depends(authenticate)])
+    def get_draft(
+        draft_id: str,
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        return {
+            "draft": service.get_draft(
+                actor_id=actor_for(principal, actor_id), draft_id=draft_id
+            ).to_dict()
+        }
+
+    @app.get("/v1/transactions", dependencies=[Depends(authenticate)])
+    def list_transactions(
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+        month: str | None = None,
+        kind: EntryKind | None = None,
+        payment_method: PaymentMethod | None = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, object]:
+        items, total = service.list_transactions(
+            actor_id=actor_for(principal, actor_id),
+            month=month,
+            kind=kind,
+            payment_method=payment_method,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items, "total": total}
+
+    @app.get("/v1/reports/dashboard", dependencies=[Depends(authenticate)])
+    def dashboard_report(
+        month: str,
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        return service.dashboard_report(
+            actor_id=actor_for(principal, actor_id), month=month
+        )
+
+    @app.get("/v1/audit-events", dependencies=[Depends(authenticate)])
+    def list_audit_events(
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, object]:
+        items, total = service.list_audit_events(
+            actor_id=actor_for(principal, actor_id), limit=limit, offset=offset
+        )
+        return {"items": items, "total": total}
+
+    web_dist_dir = resolved_settings.web_dist_dir
+    if web_dist_dir and (web_dist_dir / "index.html").is_file():
+        assets_dir = web_dist_dir / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="web-assets")
+
+        @app.get("/", include_in_schema=False)
+        def web_index() -> FileResponse:
+            return FileResponse(web_dist_dir / "index.html")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def web_spa(full_path: str) -> FileResponse:
+            if full_path.startswith("v1/") or full_path == "health":
+                raise HTTPException(status_code=404, detail="Topilmadi")
+            requested = _safe_web_file(web_dist_dir, full_path)
+            if requested is not None:
+                return FileResponse(requested)
+            return FileResponse(web_dist_dir / "index.html")
 
     return app
+
+
+def _safe_web_file(root: Path, relative_path: str) -> Path | None:
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root.resolve())
+    except ValueError:
+        return None
+    return candidate if candidate.is_file() else None
 
 
 def _error_response(status_code: int, detail: str):

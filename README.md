@@ -34,15 +34,15 @@ Telegram → Hermes → Moliya backend
 Core testlar tashqi dependency va API kalitisiz ishlaydi:
 
 ```bash
-cd /home/alex/Downloads/moliya-agent
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+cd /home/alex/busin/pet-project-2/skills/moliya-agent
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 ```
 
 Dependencylar o'rnatilgach, disposable SQLite bazasi va memory writer bilan
 lokal API + Hermes client acceptance testi:
 
 ```bash
-cd /home/alex/Downloads/moliya-agent
+cd /home/alex/busin/pet-project-2/skills/moliya-agent
 .venv/bin/python scripts/acceptance_test_local.py
 ```
 
@@ -51,14 +51,14 @@ cd /home/alex/Downloads/moliya-agent
 Docker bilan:
 
 ```bash
-cd /home/alex/Downloads/moliya-agent
+cd /home/alex/busin/pet-project-2/skills/moliya-agent
 docker compose up --build
 ```
 
 Yoki Python virtual environment bilan:
 
 ```bash
-cd /home/alex/Downloads/moliya-agent
+cd /home/alex/busin/pet-project-2/skills/moliya-agent
 python3 -m venv .venv
 .venv/bin/pip install -e .
 cp .env.example .env
@@ -67,6 +67,54 @@ set -a
 set +a
 .venv/bin/moliya-api
 ```
+
+## Web interfeys
+
+Responsive React/TypeScript interfeysi `app/` katalogida joylashgan:
+
+```bash
+cd app
+npm install
+npm run dev
+```
+
+Production build:
+
+```bash
+npm run build
+```
+
+`MOLIYA_WEB_DIST_DIR` `app/dist` katalogiga ko'rsatilsa, FastAPI production
+frontendni, SPA deep-linklarni va API'ni bitta origin orqali serve qiladi.
+Developmentda Vite `/api` so'rovlarini lokal `127.0.0.1:8088` backendga proxy
+qiladi.
+
+Hozirgi public deployment:
+
+```text
+https://moliya.34-29-145-102.sslip.io
+```
+
+Web interfeys quyidagi real backend endpointlaridan foydalanadi:
+
+```text
+POST/GET/DELETE /v1/session
+GET /v1/drafts
+GET /v1/drafts/{draft_id}
+GET /v1/transactions
+GET /v1/reports/dashboard
+GET /v1/audit-events
+```
+
+Audit hodisalari SQLite'da doimiy saqlanadi. Hozir yoziladigan hodisalar:
+`draft.created`, `draft.confirmed`, `draft.rejected` va `sheet.write_failed`.
+Audit javoblari `limit`/`offset` paginationini qo'llaydi.
+
+Brauzer ichki `X-Moliya-Token`ni olmaydi. Login backend imzolagan `HttpOnly`,
+`SameSite=Strict` cookie yaratadi. Productionda `MOLIYA_WEB_PASSWORD`,
+`MOLIYA_SESSION_SECRET` va `MOLIYA_SESSION_COOKIE_SECURE=true` majburiy tarzda
+server secretlarida sozlanadi. `MOLIYA_WEB_ACTOR_ID` qiymati
+`MOLIYA_ALLOWED_ACTORS` ro'yxatida bo'lishi kerak.
 
 Default holatda `rule` parser va `memory` writer ishlaydi. Bu faqat lokal wiring
 testi; productionda quyidagilarni almashtirish kerak:
@@ -178,14 +226,32 @@ U mavjud `Operatsiyalar` qatorlarini o'chirmaydi.
 
 ## VM deployment tartibi
 
-1. Loyihani `/home/busin/moliya-agent` ga joylash.
-2. `.venv` yaratib `pip install -e .` bajarish.
-3. Secretlarni `/home/busin/.hermes/moliya-agent.env` ga yozish.
-4. `deploy/moliya-agent.service` ni user systemd katalogiga o'rnatish.
-5. Backend health checkni tekshirish.
-6. Hermes skillni o'rnatish.
-7. Avval test workbookda end-to-end sinash.
-8. Faqat acceptance testlardan keyin haqiqiy workbook IDga o'tish.
+GCloud VM uchun takrorlanadigan deploy:
+
+```bash
+./scripts/deploy_gcloud.sh
+```
+
+Skript quyidagilarni avtomatik bajaradi:
+
+1. `app/` uchun clean `npm ci`, typecheck va production build.
+2. Backend source va frontend `dist` uchun checksumli release yaratish.
+3. Release'ni `pet-project-2` VM'ga yuborish.
+4. Source, `.env` va SQLite bazaning timestamped backupini olish.
+5. Yangi kodni staging konfiguratsiyada validate qilish.
+6. Faqat validationdan keyin backend va Telegram botni qisqa to'xtatish.
+7. Source va web buildni rsync qilish, servicelarni qayta ishga tushirish.
+
+Default instance va zonani kerak bo'lsa environment orqali almashtirish mumkin:
+
+```bash
+MOLIYA_GCLOUD_INSTANCE=pet-project-2 \
+MOLIYA_GCLOUD_ZONE=us-central1-c \
+./scripts/deploy_gcloud.sh
+```
+
+Remote secretlar `/home/busin/.hermes/moliya-agent.env` ichida qoladi va release
+paketiga kiritilmaydi. Backup'lar `/home/busin/backups/` ostida saqlanadi.
 
 ## Keyingi acceptance testlar
 

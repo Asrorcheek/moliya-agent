@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 moliya-api = "moliya_agent.main:main"
+moliya-telegram-bot = "moliya_agent.telegram_bot:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

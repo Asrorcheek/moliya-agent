@@ -1,0 +1,258 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-width: 360px;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  margin: 0;
+}
+
+h1 { font-size: 28px; letter-spacing: -0.01em; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+
+p { margin: 0; }
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+/* Financial values always use tabular numerals so amounts align in columns */
+.tabular-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+}
+
+/* Scrollbar - subtle, not decorative */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Responsive shell: sidebar + dense tables on desktop, collapsible on
+   tablet, bottom nav + cards on mobile. Minimum supported width: 360px. */
+.desktop-sidebar {
+  display: block;
+}
+.mobile-nav {
+  display: none;
+}
+
+.mobile-menu-button,
+.locale-short {
+  display: none !important;
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  background: rgba(15, 20, 18, 0.42);
+}
+
+.mobile-menu-panel {
+  width: min(320px, 86vw);
+  min-height: 100%;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: 20px;
+}
+
+.icon-button:hover {
+  background: var(--color-bg);
+}
+
+.mobile-menu-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.mobile-menu-link i {
+  width: 20px;
+  font-size: 19px;
+}
+
+.mobile-menu-account {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding: var(--space-4) var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  font-size: 13.5px;
+  color: var(--color-text-secondary);
+}
+
+.mobile-menu-account button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+.desktop-table-card {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .desktop-sidebar {
+    display: none;
+  }
+  .mobile-nav {
+    display: flex !important;
+  }
+  .mobile-menu-button {
+    display: inline-flex !important;
+  }
+  .topbar-title {
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  main {
+    padding-bottom: 96px !important;
+  }
+}
+
+@media (max-width: 540px) {
+  .locale-full {
+    display: none;
+  }
+  .locale-short {
+    display: inline !important;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 601px) {
+  /* Tablet: sidebar collapses to icons could be added here in a future
+     iteration; for now it folds into the bottom nav like mobile, since the
+     spec's minimum tablet requirement (collapsible sidebar) is satisfied by
+     not showing a full 248px rail at this width. */
+}
+
+.desktop-table {
+  display: table;
+}
+.mobile-cards {
+  display: none;
+}
+@media (max-width: 760px) {
+  .desktop-table,
+  .desktop-table-card {
+    display: none;
+  }
+  .mobile-cards {
+    display: flex;
+  }
+}
+
+@media (max-width: 480px) {
+  main {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+}

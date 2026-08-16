@@ -1,0 +1,87 @@
+/*
+  Moliya Agent design tokens.
+  Palette rationale: a trustworthy ledger feel, not a generic admin blue and
+  not the cream+terracotta AI-default. Warm stone background, deep teal-ink
+  primary (evokes a fountain-pen ledger entry), amber only for "needs
+  clarification", green only for confirmed states, red only for destructive
+  or negative amounts.
+*/
+:root {
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-bg: #F5F3EE;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #E1DED4;
+  --color-border-strong: #C9C5B7;
+
+  --color-text-primary: #1B1D1A;
+  --color-text-secondary: #5B584E;
+  --color-text-muted: #8A8778;
+  --color-text-on-primary: #F5F3EE;
+
+  --color-primary: #0F4F4A;
+  --color-primary-strong: #0A3A36;
+  --color-primary-soft: #E1EEEC;
+
+  --color-success: #276B45;
+  --color-success-soft: #E5F0E6;
+  --color-success-strong: #1B4E32;
+
+  --color-danger: #A3352E;
+  --color-danger-soft: #F7E7E5;
+  --color-danger-strong: #7A2621;
+
+  --color-amber: #A8701A;
+  --color-amber-soft: #FBF0DD;
+  --color-amber-strong: #7C5210;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --shadow-sm: 0 1px 2px rgba(27, 29, 26, 0.06);
+  --shadow-md: 0 4px 12px rgba(27, 29, 26, 0.08);
+
+  --sidebar-width: 248px;
+  --topbar-height: 60px;
+}
+
+[data-theme='dark'] {
+  --color-bg: #14211F;
+  --color-surface: #1B2D2A;
+  --color-surface-raised: #203633;
+  --color-border: #2C4340;
+  --color-border-strong: #3C5652;
+
+  --color-text-primary: #F0EFE9;
+  --color-text-secondary: #B9B6A9;
+  --color-text-muted: #8A8778;
+  --color-text-on-primary: #0F1F1D;
+
+  --color-primary: #5FBDB2;
+  --color-primary-strong: #7ED0C6;
+  --color-primary-soft: #223A37;
+
+  --color-success: #6FBE8C;
+  --color-success-soft: #1E3327;
+  --color-success-strong: #8BD1A6;
+
+  --color-danger: #E28A84;
+  --color-danger-soft: #3A2321;
+  --color-danger-strong: #F0A8A2;
+
+  --color-amber: #E3AE5C;
+  --color-amber-soft: #3A2E17;
+  --color-amber-strong: #F0C280;
+}

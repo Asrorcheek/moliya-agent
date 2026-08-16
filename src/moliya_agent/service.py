@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
-from .domain import DraftRecord, DraftStatus, EntryKind
+from .domain import DraftRecord, DraftStatus, EntryKind, PaymentMethod
 from .parser import FinancialParser
 from .repository import SQLiteDraftRepository
 from .sheets import SheetWriter
@@ -79,13 +79,22 @@ class MoliyaService:
         if local_now.tzinfo is None:
             local_now = local_now.replace(tzinfo=self._timezone)
         parsed = self._parser.parse(text, today=local_now.astimezone(self._timezone).date())
-        return self._repository.create(
+        draft = self._repository.create(
             actor_id=actor_id,
             source_id=source_id,
             raw_text=text.strip(),
             parsed=parsed,
             now=local_now.astimezone(UTC),
         )
+        self._repository.add_audit_event(
+            actor_id=actor_id,
+            event_type="draft.created",
+            entity_type="draft",
+            entity_id=draft.id,
+            details={"source_id": source_id, "entry_count": len(draft.parsed.entries)},
+            now=local_now.astimezone(UTC),
+        )
+        return draft
 
     def confirm(self, *, actor_id: str, draft_id: str) -> ConfirmationResult:
         self._authorize(actor_id)
@@ -112,11 +121,30 @@ class MoliyaService:
                 )
 
             now = datetime.now(UTC)
-            written = self._sheet_writer.write_draft(
-                draft, confirmed_by=actor_id, confirmed_at=now
-            )
+            try:
+                written = self._sheet_writer.write_draft(
+                    draft, confirmed_by=actor_id, confirmed_at=now
+                )
+            except Exception as exc:
+                self._repository.add_audit_event(
+                    actor_id=actor_id,
+                    event_type="sheet.write_failed",
+                    entity_type="draft",
+                    entity_id=draft.id,
+                    details={"error_type": type(exc).__name__},
+                    now=now,
+                )
+                raise
             confirmed = self._repository.set_status(
                 draft.id, DraftStatus.CONFIRMED, now=now
+            )
+            self._repository.add_audit_event(
+                actor_id=actor_id,
+                event_type="draft.confirmed",
+                entity_type="draft",
+                entity_id=draft.id,
+                details={"written_rows": written},
+                now=now,
             )
             return ConfirmationResult(
                 draft=confirmed, written_rows=written, already_confirmed=False
@@ -133,7 +161,14 @@ class MoliyaService:
             )
         if draft.status == DraftStatus.REJECTED:
             return draft
-        return self._repository.set_status(draft.id, DraftStatus.REJECTED)
+        rejected = self._repository.set_status(draft.id, DraftStatus.REJECTED)
+        self._repository.add_audit_event(
+            actor_id=actor_id,
+            event_type="draft.rejected",
+            entity_type="draft",
+            entity_id=draft.id,
+        )
+        return rejected
 
     def monthly_report(self, *, actor_id: str, month: str) -> dict[str, int | str]:
         self._authorize(actor_id)
@@ -173,6 +208,119 @@ class MoliyaService:
             "expense_uzs": expenses,
             "net_profit_uzs": gross_profit - expenses,
         }
+
+    def get_draft(self, *, actor_id: str, draft_id: str) -> DraftRecord:
+        self._authorize(actor_id)
+        draft = self._repository.get(draft_id)
+        if draft.actor_id != actor_id:
+            raise AuthorizationError("Boshqa actor draftini ko'rib bo'lmaydi")
+        return draft
+
+    def list_drafts(
+        self,
+        *,
+        actor_id: str,
+        status: DraftStatus | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[DraftRecord], int]:
+        self._authorize(actor_id)
+        return self._repository.list_drafts(
+            actor_id=actor_id, status=status, limit=limit, offset=offset
+        )
+
+    def list_transactions(
+        self,
+        *,
+        actor_id: str,
+        month: str | None = None,
+        kind: EntryKind | None = None,
+        payment_method: PaymentMethod | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, object]], int]:
+        self._authorize(actor_id)
+        drafts, _ = self._repository.list_drafts(
+            actor_id=actor_id, status=DraftStatus.CONFIRMED, limit=10_000, offset=0
+        )
+        transactions: list[dict[str, object]] = []
+        for draft in drafts:
+            if month and not draft.parsed.transaction_date.isoformat().startswith(month):
+                continue
+            for index, entry in enumerate(draft.parsed.entries):
+                if kind and entry.kind != kind:
+                    continue
+                if payment_method and entry.payment_method != payment_method:
+                    continue
+                transactions.append(
+                    {
+                        "entry_id": f"{draft.id}:{index}",
+                        "draft_id": draft.id,
+                        "actor_id": draft.actor_id,
+                        "source_id": draft.source_id,
+                        "transaction_date": draft.parsed.transaction_date.isoformat(),
+                        "confirmed_at": (
+                            draft.confirmed_at.isoformat() if draft.confirmed_at else None
+                        ),
+                        **entry.to_dict(),
+                    }
+                )
+        total = len(transactions)
+        return transactions[offset : offset + limit], total
+
+    def dashboard_report(self, *, actor_id: str, month: str) -> dict[str, object]:
+        summary = self.monthly_report(actor_id=actor_id, month=month)
+        transactions, transaction_count = self.list_transactions(
+            actor_id=actor_id, month=month, limit=10_000
+        )
+        pending, pending_count = self.list_drafts(
+            actor_id=actor_id, status=DraftStatus.PENDING, limit=5, offset=0
+        )
+        payment_totals = {"cash_uzs": 0, "card_uzs": 0, "transfer_uzs": 0}
+        daily_totals: dict[str, dict[str, int]] = {}
+        category_totals: dict[str, int] = {}
+        for transaction in transactions:
+            breakdown = transaction["payment_breakdown"]
+            if isinstance(breakdown, dict):
+                for key in payment_totals:
+                    payment_totals[key] += int(breakdown.get(key, 0))
+            date_label = str(transaction["transaction_date"])[5:]
+            day = daily_totals.setdefault(
+                date_label, {"income_uzs": 0, "expense_uzs": 0}
+            )
+            kind = transaction["kind"]
+            amount = int(transaction["amount_uzs"])
+            if kind == EntryKind.INCOME.value:
+                day["income_uzs"] += amount
+            elif kind in {EntryKind.EXPENSE.value, EntryKind.COST_OF_GOODS.value}:
+                day["expense_uzs"] += amount
+                category = str(transaction.get("category") or "Boshqa")
+                category_totals[category] = category_totals.get(category, 0) + amount
+        return {
+            "summary": summary,
+            "payment_totals": payment_totals,
+            "pending_count": pending_count,
+            "transaction_count": transaction_count,
+            "recent_transactions": transactions[:5],
+            "pending_drafts": [draft.to_dict() for draft in pending],
+            "income_vs_expense_by_day": [
+                {"date": date, **daily_totals[date]} for date in sorted(daily_totals)
+            ],
+            "expense_by_category": [
+                {"category": category, "amount_uzs": amount}
+                for category, amount in sorted(
+                    category_totals.items(), key=lambda item: item[1], reverse=True
+                )
+            ],
+        }
+
+    def list_audit_events(
+        self, *, actor_id: str, limit: int, offset: int
+    ) -> tuple[list[dict[str, object]], int]:
+        self._authorize(actor_id)
+        return self._repository.list_audit_events(
+            actor_id=actor_id, limit=limit, offset=offset
+        )
 
 
 def format_draft_preview(draft: DraftRecord) -> str:
