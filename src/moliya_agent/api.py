@@ -3,15 +3,15 @@ from __future__ import annotations
 import secrets
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from .config import Settings
 from .auth import InvalidSessionError, Principal, SessionManager
+from .config import Settings
 from .domain import DomainValidationError, DraftStatus, EntryKind, PaymentMethod
 from .factory import build_service
 from .parser import ParseError
@@ -21,6 +21,11 @@ from .service import (
     ClarificationRequiredError,
     InvalidTransitionError,
     format_draft_preview,
+)
+from .settings_store import (
+    SettingsConflictError,
+    SettingsItemNotFoundError,
+    SQLiteSettingsStore,
 )
 from .sheets import SheetWriteError
 
@@ -47,9 +52,34 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class BusinessProfileRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=160)
+    phone: str = Field(default="", max_length=64)
+    address: str = Field(default="", max_length=300)
+    timezone: Literal["Asia/Tashkent"] = "Asia/Tashkent"
+
+
+class TeamMemberRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    full_name: str = Field(min_length=2, max_length=160)
+    role: Literal["owner", "manager", "accountant"]
+
+
+class CategoryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name_uz: str = Field(min_length=1, max_length=80)
+    name_ru: str = Field(min_length=1, max_length=80)
+    name_en: str = Field(min_length=1, max_length=80)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     service = build_service(resolved_settings)
+    settings_store = SQLiteSettingsStore(resolved_settings.db_path)
     app = FastAPI(title="Moliya AI Agent", version="0.1.0")
     sessions = SessionManager(resolved_settings.session_secret)
 
@@ -99,6 +129,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(SheetWriteError)
     async def sheet_handler(_request, exc):
         return _error_response(502, str(exc))
+
+    @app.exception_handler(SettingsItemNotFoundError)
+    async def settings_not_found_handler(_request, _exc):
+        return _error_response(404, "Sozlama elementi topilmadi")
+
+    @app.exception_handler(SettingsConflictError)
+    async def settings_conflict_handler(_request, exc):
+        return _error_response(409, str(exc))
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -265,6 +303,134 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             actor_id=actor_for(principal, actor_id), limit=limit, offset=offset
         )
         return {"items": items, "total": total}
+
+    def settings_actor(principal: Principal) -> str:
+        return actor_for(principal, None)
+
+    @app.get("/v1/settings", dependencies=[Depends(authenticate)])
+    def get_settings(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        actor_id = settings_actor(principal)
+        return {
+            "business": settings_store.get_business(actor_id, principal.username),
+            "users": settings_store.list_members(actor_id, principal.username),
+            "categories": settings_store.list_categories(actor_id, principal.username),
+            "integration": {
+                "sheet_mode": resolved_settings.sheet_mode,
+                "parser_mode": resolved_settings.parser_mode,
+                "connected": resolved_settings.sheet_mode == "google",
+                "spreadsheet_url": (
+                    f"https://docs.google.com/spreadsheets/d/{resolved_settings.spreadsheet_id}/edit"
+                    if resolved_settings.spreadsheet_id
+                    else None
+                ),
+            },
+        }
+
+    @app.put("/v1/settings/business", dependencies=[Depends(authenticate)])
+    def update_business(
+        request: BusinessProfileRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        return {
+            "business": settings_store.update_business(
+                settings_actor(principal),
+                principal.username,
+                name=request.name.strip(),
+                phone=request.phone.strip(),
+                address=request.address.strip(),
+                timezone=request.timezone,
+            )
+        }
+
+    @app.get("/v1/users", dependencies=[Depends(authenticate)])
+    def list_users(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        return {
+            "items": settings_store.list_members(
+                settings_actor(principal), principal.username
+            )
+        }
+
+    @app.post("/v1/users", status_code=201, dependencies=[Depends(authenticate)])
+    def create_user(
+        request: TeamMemberRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        return {
+            "user": settings_store.create_member(
+                settings_actor(principal),
+                principal.username,
+                full_name=request.full_name.strip(),
+                role=request.role,
+            )
+        }
+
+    @app.put("/v1/users/{user_id}", dependencies=[Depends(authenticate)])
+    def update_user(
+        user_id: str,
+        request: TeamMemberRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        return {
+            "user": settings_store.update_member(
+                settings_actor(principal),
+                user_id,
+                full_name=request.full_name.strip(),
+                role=request.role,
+            )
+        }
+
+    @app.delete("/v1/users/{user_id}", dependencies=[Depends(authenticate)])
+    def delete_user(
+        user_id: str, principal: Principal = Depends(authenticate)
+    ) -> dict[str, bool]:
+        settings_store.delete_member(settings_actor(principal), user_id)
+        return {"deleted": True}
+
+    @app.get("/v1/categories", dependencies=[Depends(authenticate)])
+    def list_categories(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        return {
+            "items": settings_store.list_categories(
+                settings_actor(principal), principal.username
+            )
+        }
+
+    @app.post("/v1/categories", status_code=201, dependencies=[Depends(authenticate)])
+    def create_category(
+        request: CategoryRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        return {
+            "category": settings_store.create_category(
+                settings_actor(principal),
+                principal.username,
+                name_uz=request.name_uz.strip(),
+                name_ru=request.name_ru.strip(),
+                name_en=request.name_en.strip(),
+            )
+        }
+
+    @app.put("/v1/categories/{category_id}", dependencies=[Depends(authenticate)])
+    def update_category(
+        category_id: str,
+        request: CategoryRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        return {
+            "category": settings_store.update_category(
+                settings_actor(principal),
+                category_id,
+                name_uz=request.name_uz.strip(),
+                name_ru=request.name_ru.strip(),
+                name_en=request.name_en.strip(),
+            )
+        }
+
+    @app.delete("/v1/categories/{category_id}", dependencies=[Depends(authenticate)])
+    def delete_category(
+        category_id: str, principal: Principal = Depends(authenticate)
+    ) -> dict[str, bool]:
+        settings_store.delete_category(settings_actor(principal), category_id)
+        return {"deleted": True}
 
     web_dist_dir = resolved_settings.web_dist_dir
     if web_dist_dir and (web_dist_dir / "index.html").is_file():

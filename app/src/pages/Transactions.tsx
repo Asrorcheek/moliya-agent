@@ -6,13 +6,21 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { CurrencyAmount } from '@/components/ui/CurrencyAmount'
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/States'
-import type { TransactionFilters } from '@/lib/mock/mockApi'
 import { moliyaApi } from '@/lib/apiClient'
 import type { EntryKind, PaymentMethod, TransactionEntry } from '@/lib/types'
 import { formatDate, formatDateTime } from '@/lib/format'
 
 const KINDS: EntryKind[] = ['income', 'expense', 'refund', 'cost_of_goods', 'receivable', 'payable', 'customer_payment', 'supplier_payment']
 const METHODS: PaymentMethod[] = ['cash', 'card', 'transfer', 'mixed', 'unknown']
+
+interface TransactionFilters {
+  dateFrom?: string
+  dateTo?: string
+  type?: string
+  paymentMethod?: string
+  category?: string
+  counterparty?: string
+}
 
 export function TransactionsPage() {
   const { t } = useI18n()
@@ -37,6 +45,8 @@ export function TransactionsPage() {
           nextItems = nextItems.filter((item) => item.counterparty?.toLowerCase().includes(needle))
         }
         if (f.dateFrom) nextItems = nextItems.filter((item) => item.transaction_date >= f.dateFrom!)
+        if (f.dateTo) nextItems = nextItems.filter((item) => item.transaction_date <= f.dateTo!)
+        if (f.category) nextItems = nextItems.filter((item) => item.category?.toLowerCase().includes(f.category!.toLowerCase()))
         setItems(nextItems)
         setStatus('ready')
       })
@@ -51,6 +61,21 @@ export function TransactionsPage() {
     load(merged)
   }
 
+  const exportCsv = () => {
+    const escape = (value: string | number | null) => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const rows = [
+      ['entry_id', 'date', 'type', 'amount_uzs', 'payment_method', 'category', 'counterparty', 'note'],
+      ...items.map((item) => [item.entry_id, item.transaction_date, item.kind, item.amount_uzs, item.payment_method, item.category, item.counterparty, item.note]),
+    ]
+    const csv = `\uFEFF${rows.map((row) => row.map(escape).join(',')).join('\n')}`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `moliya-transactions-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <AppShell title={t('tx.title')}>
       <Card style={{ marginBottom: 'var(--space-4)' }}>
@@ -58,6 +83,11 @@ export function TransactionsPage() {
           <input
             placeholder={t('tx.counterparty')}
             onChange={(e) => applyFilters({ counterparty: e.target.value || undefined })}
+            style={fieldStyle}
+          />
+          <input
+            placeholder={t('tx.category')}
+            onChange={(e) => applyFilters({ category: e.target.value || undefined })}
             style={fieldStyle}
           />
           <select onChange={(e) => applyFilters({ type: e.target.value || undefined })} style={fieldStyle} defaultValue="">
@@ -73,9 +103,10 @@ export function TransactionsPage() {
             ))}
           </select>
           <input type="date" onChange={(e) => applyFilters({ dateFrom: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateRange')} />
+          <input type="date" onChange={(e) => applyFilters({ dateTo: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateRange')} />
         </div>
         <div style={{ marginTop: 'var(--space-3)' }}>
-          <Button variant="ghost" disabled title={t('tx.exportUnavailable')}>
+          <Button variant="ghost" onClick={exportCsv} disabled={items.length === 0}>
             <i className="ti ti-download" aria-hidden="true" /> {t('common.export')}
           </Button>
         </div>

@@ -1,17 +1,8 @@
-// Typed client for the endpoints that genuinely exist on the Moliya backend
-// today. Nothing in this file is mocked — every function here maps 1:1 to a
-// real route in api.py. See src/lib/mock/mockApi.ts for the endpoints that
-// do not exist yet.
-//
-// IMPORTANT: the real backend authenticates with X-Moliya-Token, an internal
-// server-to-server secret. It must never be embedded in browser code. This
-// client instead calls VITE_MOLIYA_API_BASE_URL directly for local/dev use
-// against a backend that has CORS + a dev token configured, but the intended
-// production shape is a backend-for-frontend (BFF) that terminates the
-// user's session and injects the internal token server-side. Point
-// VITE_MOLIYA_API_BASE_URL at that BFF once it exists.
+// Typed client for the real Moliya backend. Browser requests authenticate
+// through the HttpOnly session cookie; the internal service token is never
+// exposed to frontend code.
 
-import type { AuditEvent, DashboardSummary, DraftRecord, DraftStatus, EntryKind, MonthlyReport, PaymentMethod, TransactionEntry } from './types'
+import type { AppSettings, AppUser, AuditEvent, BusinessProfile, Category, DashboardSummary, DraftRecord, DraftStatus, EntryKind, MonthlyReport, PaymentMethod, TransactionEntry, UserRole } from './types'
 
 const BASE_URL = import.meta.env.VITE_MOLIYA_API_BASE_URL ?? ''
 
@@ -211,4 +202,42 @@ export const moliyaApi = {
 
   monthlyReport: (actorId: string, month: string) =>
     request<MonthlyReport>(`/v1/reports/monthly?actor_id=${encodeURIComponent(actorId)}&month=${encodeURIComponent(month)}`),
+
+  getSettings: () => request<AppSettings>('/v1/settings'),
+
+  updateBusiness: (input: Pick<BusinessProfile, 'name' | 'phone' | 'address' | 'timezone'>) =>
+    request<{ business: BusinessProfile }>('/v1/settings/business', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  createUser: (input: { full_name: string; role: UserRole }) =>
+    request<{ user: AppUser }>('/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateUser: (userId: string, input: { full_name: string; role: UserRole }) =>
+    request<{ user: AppUser }>(`/v1/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  deleteUser: (userId: string) =>
+    request<{ deleted: boolean }>(`/v1/users/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+
+  createCategory: (input: Pick<Category, 'name_uz' | 'name_ru' | 'name_en'>) =>
+    request<{ category: Category }>('/v1/categories', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateCategory: (categoryId: string, input: Pick<Category, 'name_uz' | 'name_ru' | 'name_en'>) =>
+    request<{ category: Category }>(`/v1/categories/${encodeURIComponent(categoryId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  deleteCategory: (categoryId: string) =>
+    request<{ deleted: boolean }>(`/v1/categories/${encodeURIComponent(categoryId)}`, { method: 'DELETE' }),
 }

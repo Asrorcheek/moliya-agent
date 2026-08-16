@@ -67,11 +67,6 @@ export interface MonthlyReport {
   [key: string]: unknown
 }
 
-// --- Types for endpoints that do not exist on the backend yet. ---
-// These mirror the proposed contract in docs/API_CONTRACT.md and are only
-// ever populated by the mock layer (src/lib/mock) until the real endpoints
-// ship.
-
 export type UserRole = 'owner' | 'manager' | 'accountant'
 
 export interface AppUser {
@@ -106,6 +101,29 @@ export interface Category {
   name_ru: string
   name_en: string
   is_custom: boolean
+}
+
+export interface BusinessProfile {
+  name: string
+  phone: string
+  address: string
+  timezone: 'Asia/Tashkent'
+  currency: 'UZS'
+  updated_at: string
+}
+
+export interface IntegrationStatus {
+  sheet_mode: string
+  parser_mode: string
+  connected: boolean
+  spreadsheet_url: string | null
+}
+
+export interface AppSettings {
+  business: BusinessProfile
+  users: AppUser[]
+  categories: Category[]
+  integration: IntegrationStatus
 }
 
 export type AuditEventType =

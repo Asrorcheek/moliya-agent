@@ -5,12 +5,12 @@ import os
 import signal
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 from threading import RLock
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-
 
 CONFIRM_WORDS = {"ha", "tasdiqlayman", "yoz", "to'g'ri", "to‘g‘ri"}
 REJECT_WORDS = {"yo'q", "yo‘q", "rad", "bekor", "bekor qil"}
@@ -226,14 +226,12 @@ class MoliyaTelegramBot:
     def create_draft(self, chat_id: int, user_id: int, message_id: int, text: str) -> None:
         old_draft = self.state.get(user_id)
         if old_draft:
-            try:
+            with suppress(BotError):
                 self.backend(
                     "POST",
                     f"/v1/drafts/{old_draft}/reject",
                     {"actor_id": self.actor(user_id)},
                 )
-            except BotError:
-                pass
         result = self.backend(
             "POST",
             "/v1/drafts",
@@ -340,7 +338,11 @@ class MoliyaTelegramBot:
                         elif "callback_query" in update:
                             self.handle_callback(update["callback_query"])
                     except BotError as exc:
-                        target = update.get("message") or update.get("callback_query", {}).get("message") or {}
+                        target = (
+                            update.get("message")
+                            or update.get("callback_query", {}).get("message")
+                            or {}
+                        )
                         chat = target.get("chat") or {}
                         if chat.get("id"):
                             self.send(int(chat["id"]), f"Xato: {exc}")

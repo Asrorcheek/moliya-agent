@@ -35,7 +35,11 @@ class SessionManager:
     def create(self, *, username: str, actor_id: str) -> str:
         payload = self._encode(
             json.dumps(
-                {"sub": username, "actor_id": actor_id, "exp": int(time.time()) + self.lifetime_seconds},
+                {
+                    "sub": username,
+                    "actor_id": actor_id,
+                    "exp": int(time.time()) + self.lifetime_seconds,
+                },
                 separators=(",", ":"),
             ).encode()
         )

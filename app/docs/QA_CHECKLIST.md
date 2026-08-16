@@ -1,7 +1,6 @@
 # Accessibility & responsive QA checklist
 
-Run through this before shipping any change. Items marked **(mock)** only
-apply once real data replaces the mock layer for that screen.
+Run through this before shipping any change.
 
 ## Responsive
 
@@ -41,7 +40,7 @@ apply once real data replaces the mock layer for that screen.
 - [ ] All UZS amounts use `formatUzs`/`CurrencyAmount` \u2014 no ad hoc `toLocaleString()` calls
 - [ ] Tabular numerals (`.tabular-num`) applied everywhere a number appears in a list or table
 - [ ] Negative/reversal amounts always red, confirmed/positive always green, pending/clarification always amber \u2014 grep for raw hex colors outside `tokens.css` to catch drift
-- [ ] Every screen showing mocked data has a visible `MockNotice`
+- [x] Production pages use backend data; no mock layer is shipped
 
 ## Build
 

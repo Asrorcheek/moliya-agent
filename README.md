@@ -167,6 +167,20 @@ curl -sS \
   -H "X-Moliya-Token: $MOLIYA_INTERNAL_TOKEN"
 ```
 
+### Web sozlamalari
+
+Sessiya orqali autentifikatsiya qilingan web foydalanuvchi quyidagilarni
+boshqarishi mumkin:
+
+- `GET /v1/settings` — biznes, jamoa, kategoriyalar va integratsiya holati;
+- `PUT /v1/settings/business` — biznes profili;
+- `/v1/users` — jamoa a’zolarini qo‘shish, tahrirlash va o‘chirish;
+- `/v1/categories` — custom kategoriyalarni qo‘shish, tahrirlash va o‘chirish.
+
+Sozlamalar shu asosiy SQLite bazada saqlanadi va deploy/restartdan keyin ham
+saqlanib qoladi. Standart kategoriyalar o‘zgartirilmaydi, kamida bitta `owner`
+qolishi backend tomonidan majburiy tekshiriladi.
+
 ## Hermes skillni ulash
 
 Backend va skillni VM'ga ko'chirgandan keyin:

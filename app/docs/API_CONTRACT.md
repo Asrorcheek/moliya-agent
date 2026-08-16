@@ -1,13 +1,11 @@
-# Moliya Agent — proposed future API contract
+# Moliya Agent — web API contract
 
-Status: **proposed, not implemented**. Nothing in this document exists on the
-backend today. It exists so the frontend's mock layer (`src/lib/mock/`) has
-one canonical shape to match, and so backend work can pick it up directly.
+Status: **implemented unless a section explicitly says proposed**. The web UI
+uses secure session cookies and real backend data; it contains no mock layer.
 
-Every response envelope below assumes the same session-based auth this repo
-proposes replacing `X-Moliya-Token` with for browser clients (see
-"Authentication" at the end) — none of these should ever accept the internal
-token directly from a browser.
+Browser clients use the session cookie endpoints documented below. The
+`X-Moliya-Token` header remains reserved for trusted server-to-server calls and
+is never embedded in frontend code.
 
 ---
 
@@ -80,11 +78,16 @@ Single `TransactionEntry`. `404` if not found.
 { "items": [ { "id": "c1", "name_uz": "Ijara", "name_ru": "\u0410\u0440\u0435\u043d\u0434\u0430", "name_en": "Rent", "is_custom": false } ] }
 ```
 
-Seed from the confirmed list in `01-talablarni-tasdiqlash.md` \u00a73.7 (Ijara, Oylik, Kommunal, Soliq, Marketing, Yetkazib berish, Boshqa). Whether agents/users can create new categories is still an open question in that same document \u2014 until answered, `POST /v1/categories` is out of scope.
+Seeded from the confirmed list in `01-talablarni-tasdiqlash.md` \u00a73.7 (Ijara,
+Oylik, Kommunal, Soliq, Marketing, Yetkazib berish, Boshqa). Custom categories
+support `POST`, `PUT` and `DELETE`; built-in categories cannot be changed or deleted.
 
 ## GET /v1/users
 
 **Response 200**: `{ "items": [ { "id", "full_name", "role", "telegram_linked" } ] }`.
+
+Team members support `POST`, `PUT` and `DELETE`. The backend always preserves
+at least one owner.
 
 **Auth**: owner only. Roles (`owner | manager | accountant`) are a frontend-proposed default, not yet confirmed by the business \u2014 see open question in \u00a73.1 of the requirements doc.
 
@@ -118,19 +121,12 @@ with a static `X-Moliya-Token` header (see `config.Settings.internal_token`
 usage in `api.py`). That token is a shared secret and **must never be sent
 from a browser**.
 
-Recommended shape for the web app specifically (to be implemented on the
-backend, not assumed by the frontend):
+The FastAPI backend implements browser authentication directly:
 
-1. A backend-for-frontend (BFF) layer, or a thin addition to the existing
-   FastAPI app, that issues a short-lived, `HttpOnly`, `Secure`,
-   `SameSite=Lax` session cookie after a real login step.
-2. The BFF holds `MOLIYA_INTERNAL_TOKEN` server-side and attaches it to
-   calls it proxies to the existing `/v1/*` routes; the browser never sees it.
-3. `src/lib/apiClient.ts` already sends `credentials: 'include'` on every
-   request in anticipation of this, and reads `VITE_MOLIYA_API_BASE_URL` so
-   it can point at the BFF instead of the raw backend once it exists.
-4. `src/lib/authContext.tsx` is a mock standing in for whatever
-   `POST /auth/login` / `POST /auth/logout` shape the BFF ends up exposing;
-   its interface (`login(username, password)`, `logout()`, `session`) is
-   deliberately generic so swapping the implementation shouldn't require
-   changing any page component.
+1. `POST /v1/session` validates the configured web credentials and returns a
+   signed, short-lived `HttpOnly`, `Secure`, `SameSite=Strict` cookie.
+2. `GET /v1/session` restores the current browser session and
+   `DELETE /v1/session` logs out.
+3. `src/lib/apiClient.ts` sends `credentials: 'include'` on every request.
+4. `MOLIYA_INTERNAL_TOKEN` remains server-side and is only accepted for
+   trusted service calls such as Hermes.

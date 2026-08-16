@@ -3,8 +3,9 @@ set -euo pipefail
 
 instance=${MOLIYA_GCLOUD_INSTANCE:-pet-project-2}
 zone=${MOLIYA_GCLOUD_ZONE:-us-central1-c}
-remote_release=/tmp/moliya-agent-release.tar.gz
-remote_script=/tmp/moliya-deploy-remote.sh
+release_id=$(date -u +%Y%m%dT%H%M%SZ)-$$
+remote_release=/tmp/moliya-agent-release-$release_id.tar.gz
+remote_script=/tmp/moliya-deploy-remote-$release_id.sh
 project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 release_dir=$(mktemp -d /tmp/moliya-release.XXXXXX)
 release_tar=$(mktemp /tmp/moliya-agent-release.XXXXXX.tar.gz)
@@ -32,7 +33,8 @@ release_sha=$(sha256sum "$release_tar" | awk '{print $1}')
 gcloud compute scp "$release_tar" "$instance:$remote_release" --zone "$zone"
 gcloud compute scp "$project_dir/scripts/deploy_remote.sh" \
   "$instance:$remote_script" --zone "$zone"
-gcloud compute ssh "$instance" --zone "$zone" --command="sudo -n bash $remote_script $remote_release $release_sha"
+gcloud compute ssh "$instance" --zone "$zone" \
+  --command="chmod 0644 $remote_release && sudo -n bash $remote_script $remote_release $release_sha"
 gcloud compute ssh "$instance" --zone "$zone" --command="rm -f $remote_release $remote_script"
 
 echo "Deployment complete"
