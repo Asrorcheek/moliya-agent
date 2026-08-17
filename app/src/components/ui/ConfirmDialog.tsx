@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '@/i18n'
 import { Button } from './Button'
+import { NavIcon } from './NavIcon'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -43,6 +44,8 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return
     const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const focusTimer = window.setTimeout(() => {
       dialogRef.current?.querySelector<HTMLElement>('input, button, [tabindex]:not([tabindex="-1"])')?.focus()
     }, 0)
@@ -67,6 +70,7 @@ export function ConfirmDialog({
     return () => {
       window.clearTimeout(focusTimer)
       window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
       previousFocus?.focus()
     }
   }, [open, submitting, onCancel])
@@ -116,7 +120,12 @@ export function ConfirmDialog({
           padding: 'var(--space-6)',
         }}
       >
-        <h2 id="confirm-dialog-title" style={{ marginBottom: 'var(--space-3)' }}>{title}</h2>
+        <div className="dialog-heading">
+          <h2 id="confirm-dialog-title">{title}</h2>
+          <button type="button" className="icon-button" aria-label={t('common.close')} onClick={onCancel} disabled={submitting}>
+            <NavIcon name="close" />
+          </button>
+        </div>
         <div style={{ color: 'var(--color-text-secondary)', fontSize: 14, marginBottom: 'var(--space-4)' }}>{body}</div>
 
         {requireAcknowledge && (

@@ -9,6 +9,7 @@ import { LoadingState, ErrorState, EmptyState } from '@/components/ui/States'
 import { moliyaApi } from '@/lib/apiClient'
 import type { EntryKind, PaymentMethod, TransactionEntry } from '@/lib/types'
 import { formatDate, formatDateTime } from '@/lib/format'
+import { NavIcon } from '@/components/ui/NavIcon'
 
 const KINDS: EntryKind[] = ['income', 'expense', 'refund', 'cost_of_goods', 'receivable', 'payable', 'customer_payment', 'supplier_payment']
 const METHODS: PaymentMethod[] = ['cash', 'card', 'transfer', 'mixed', 'unknown']
@@ -221,8 +222,8 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionEntry; onClose: () 
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)' }}>
           <h2>{t('common.details')}</h2>
-          <button onClick={onClose} aria-label={t('common.close')} style={{ background: 'none', border: 'none' }}>
-            <i className="ti ti-x" style={{ fontSize: 20 }} aria-hidden="true" />
+          <button type="button" onClick={onClose} aria-label={t('common.close')} className="icon-button">
+            <NavIcon name="close" />
           </button>
         </div>
 

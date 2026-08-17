@@ -8,11 +8,13 @@ import { Badge } from '@/components/ui/Badge'
 import { moliyaApi, ApiError } from '@/lib/apiClient'
 import type { DraftRecord } from '@/lib/types'
 import { formatUzs } from '@/lib/format'
-import { Link } from '@/router'
+import { Link, useRouter } from '@/router'
+import { NavIcon } from '@/components/ui/NavIcon'
 
 export function AddTransactionPage() {
   const { t } = useI18n()
   const { session } = useAuth()
+  const { navigate } = useRouter()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState('')
   const [draft, setDraft] = useState<DraftRecord | null>(null)
@@ -20,9 +22,20 @@ export function AddTransactionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [resolution, setResolution] = useState<'confirmed' | null>(null)
 
+  const close = () => {
+    const returnPath = window.sessionStorage.getItem('moliya:add-return')
+    window.sessionStorage.removeItem('moliya:add-return')
+    navigate(returnPath && returnPath !== '/add' ? returnPath : '/')
+  }
+
   useEffect(() => {
     textareaRef.current?.focus()
-  }, [])
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !submitting) close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [submitting])
 
   const createDraft = async (event?: FormEvent) => {
     event?.preventDefault()
@@ -85,6 +98,12 @@ export function AddTransactionPage() {
   return (
     <AppShell title={t('add.title')}>
       <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <div className="add-page-toolbar">
+          <span>{t('add.inputHint')}</span>
+          <button type="button" className="icon-button" aria-label={t('common.close')} onClick={close} disabled={submitting}>
+            <NavIcon name="close" />
+          </button>
+        </div>
         {!resolution && (
           <Card>
             <div className="add-step-heading">

@@ -30,7 +30,12 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         </main>
       </div>
       {showQuickAdd && (
-        <Link to="/add" className="floating-add-button" aria-label={t('nav.add')}>
+        <Link
+          to="/add"
+          className="floating-add-button"
+          aria-label={t('nav.add')}
+          onClick={() => window.sessionStorage.setItem('moliya:add-return', path)}
+        >
           <NavIcon name="plus" size={19} />
           <span>{t('nav.add')}</span>
         </Link>

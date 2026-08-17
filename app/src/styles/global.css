@@ -575,6 +575,28 @@ select option {
   margin-bottom: var(--space-4);
 }
 
+.add-page-toolbar,
+.dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.add-page-toolbar {
+  min-height: 42px;
+  padding: 5px 6px 5px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.dialog-heading {
+  margin-bottom: var(--space-3);
+}
+
 .step-number {
   display: inline-grid;
   place-items: center;

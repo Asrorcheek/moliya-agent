@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { AppShell } from '@/components/layout/AppShell'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -164,7 +164,23 @@ function UserIdentity({ user }: { user: AppUser }) {
 
 function UserEditor({ editor, setEditor, roleLabel, saving, onSave }: { editor: EditorState; setEditor: (value: EditorState | null) => void; roleLabel: (role: UserRole) => string; saving: boolean; onSave: (event: FormEvent) => Promise<void> }) {
   const { t } = useI18n()
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
   const patch = (value: Partial<UserForm>) => setEditor({ ...editor, user: { ...editor.user, ...value } })
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setEditor(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+      previousFocus?.focus()
+    }
+  }, [saving, setEditor])
   const generatePassword = () => {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
     const values = crypto.getRandomValues(new Uint8Array(10))
@@ -174,9 +190,9 @@ function UserEditor({ editor, setEditor, roleLabel, saving, onSave }: { editor: 
     && editor.user.email.includes('@')
     && (editor.mode === 'edit' || editor.user.password.length >= 10)
   return (
-    <div className="admin-drawer-overlay" onClick={() => setEditor(null)}>
+    <div className="admin-drawer-overlay" onClick={() => !saving && setEditor(null)}>
       <aside className="admin-drawer" role="dialog" aria-modal="true" aria-labelledby="user-editor-title" onClick={(event) => event.stopPropagation()}>
-        <div className="admin-drawer-heading"><div><h2 id="user-editor-title">{editor.mode === 'create' ? t('users.add') : t('users.edit')}</h2><p>{t('users.editorHint')}</p></div><button type="button" className="icon-button" aria-label={t('common.close')} onClick={() => setEditor(null)}>×</button></div>
+        <div className="admin-drawer-heading"><div><h2 id="user-editor-title">{editor.mode === 'create' ? t('users.add') : t('users.edit')}</h2><p>{t('users.editorHint')}</p></div><button ref={closeButtonRef} type="button" className="icon-button" aria-label={t('common.close')} onClick={() => setEditor(null)} disabled={saving}>×</button></div>
         <form onSubmit={onSave} className="admin-drawer-form">
           <label>{t('settings.fullName')}<input autoFocus required minLength={2} value={editor.user.full_name} onChange={(event) => patch({ full_name: event.target.value })} /></label>
           <label>{t('settings.email')}<input required type="email" autoComplete="username" value={editor.user.email} onChange={(event) => patch({ email: event.target.value })} placeholder="manager@company.uz" /></label>
@@ -184,7 +200,7 @@ function UserEditor({ editor, setEditor, roleLabel, saving, onSave }: { editor: 
           <label>{t('settings.role')}<select value={editor.user.role} onChange={(event) => patch({ role: event.target.value as UserRole })}>{(['owner', 'manager', 'accountant'] as UserRole[]).map((item) => <option key={item} value={item}>{roleLabel(item)}</option>)}</select></label>
           <label className="user-active-toggle"><input type="checkbox" checked={editor.user.active} onChange={(event) => patch({ active: event.target.checked })} />{t('settings.active')}</label>
           <div className="role-help"><strong>{roleLabel(editor.user.role)}</strong><span>{t(`users.roleHelp.${editor.user.role}`)}</span></div>
-          <div className="admin-drawer-actions"><Button type="button" variant="ghost" onClick={() => setEditor(null)}>{t('common.cancel')}</Button><Button type="submit" variant="primary" disabled={saving || !valid}>{saving ? t('settings.saving') : t('common.save')}</Button></div>
+          <div className="admin-drawer-actions"><Button type="button" variant="ghost" onClick={() => setEditor(null)} disabled={saving}>{t('common.cancel')}</Button><Button type="submit" variant="primary" disabled={saving || !valid}>{saving ? t('settings.saving') : t('common.save')}</Button></div>
         </form>
       </aside>
     </div>
