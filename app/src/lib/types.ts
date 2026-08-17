@@ -74,6 +74,8 @@ export interface AppUser {
   full_name: string
   role: UserRole
   telegram_linked: boolean
+  email: string
+  active: boolean
   created_at: string
 }
 

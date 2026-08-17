@@ -17,11 +17,11 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function toSession(response: { username: string; actor_id: string }): Session {
+function toSession(response: { display_name: string; actor_id: string; role: UserRole }): Session {
   return {
     actorId: response.actor_id,
-    displayName: response.username,
-    role: 'owner',
+    displayName: response.display_name,
+    role: response.role,
   }
 }
 

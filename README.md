@@ -116,6 +116,23 @@ Brauzer ichki `X-Moliya-Token`ni olmaydi. Login backend imzolagan `HttpOnly`,
 server secretlarida sozlanadi. `MOLIYA_WEB_ACTOR_ID` qiymati
 `MOLIYA_ALLOWED_ACTORS` ro'yxatida bo'lishi kerak.
 
+### Foydalanuvchi loginlari va rollar
+
+Owner web interfeysdagi `Users` sahifasidan foydalanuvchining ismi, emaili,
+paroli va rolini kiritib alohida login yaratadi. Yangi foydalanuvchi login
+sahifasida shu email va parol bilan kiradi. Parol bazada PBKDF2-SHA256 hash
+ko'rinishida saqlanadi va API javoblarida qaytarilmaydi. Unutilgan parolni
+ko'rib bo'lmaydi; Owner `Users → Edit → New password` orqali yangisini beradi.
+
+- `owner`: barcha moliyaviy funksiyalar, Users, Audit va Settings.
+- `manager`: dashboard, draftlar, operatsiyalar, hisobotlar, yangi operatsiya
+  yaratish hamda draftni tasdiqlash/rad etish. Users, Audit va Settings yopiq.
+- `accountant`: hozir Manager bilan bir xil moliyaviy ruxsatlar to'plamidan
+  foydalanadi; admin bo'limlari yopiq.
+
+Oxirgi faol Ownerni o'chirish, faolsizlantirish yoki boshqa rolga o'tkazish
+server tomonidan bloklanadi.
+
 Default holatda `rule` parser va `memory` writer ishlaydi. Bu faqat lokal wiring
 testi; productionda quyidagilarni almashtirish kerak:
 

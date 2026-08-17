@@ -45,11 +45,13 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5 }}>
-            {t('login.username')}
+            {t('login.email')}
             <input
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              type="text"
+              placeholder="manager@company.uz"
               style={inputStyle}
               required
             />

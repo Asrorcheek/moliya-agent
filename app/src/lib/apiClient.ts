@@ -45,7 +45,10 @@ export interface CreateDraftInput {
 
 export interface SessionResponse {
   username: string
+  display_name: string
   actor_id: string
+  role: UserRole
+  user_id: string
 }
 
 export interface HealthResponse {
@@ -216,13 +219,13 @@ export const moliyaApi = {
       body: JSON.stringify(input),
     }),
 
-  createUser: (input: { full_name: string; role: UserRole }) =>
+  createUser: (input: { full_name: string; email: string; password: string; role: UserRole }) =>
     request<{ user: AppUser }>('/v1/users', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
-  updateUser: (userId: string, input: { full_name: string; role: UserRole }) =>
+  updateUser: (userId: string, input: { full_name: string; email: string; password?: string; role: UserRole; active: boolean }) =>
     request<{ user: AppUser }>(`/v1/users/${encodeURIComponent(userId)}`, {
       method: 'PUT',
       body: JSON.stringify(input),

@@ -18,6 +18,7 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
   const { t } = useI18n()
   const { path } = useRouter()
   const { session, logout } = useAuth()
+  const visibleItems = session?.role === 'owner' ? ITEMS : ITEMS.filter((item) => !['/users', '/audit', '/settings'].includes(item.to))
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const active = path === item.to
             return (
               <Link

@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .auth import hash_password
+
 
 class SettingsItemNotFoundError(LookupError):
     pass
@@ -66,6 +68,9 @@ class SQLiteSettingsStore:
                     full_name TEXT NOT NULL,
                     role TEXT NOT NULL,
                     telegram_linked INTEGER NOT NULL DEFAULT 0,
+                    email TEXT,
+                    password_hash TEXT,
+                    active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_team_actor
@@ -81,6 +86,22 @@ class SQLiteSettingsStore:
                     PRIMARY KEY(actor_id, id)
                 );
                 """
+            )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(team_members)").fetchall()
+            }
+            if "email" not in columns:
+                connection.execute("ALTER TABLE team_members ADD COLUMN email TEXT")
+            if "password_hash" not in columns:
+                connection.execute("ALTER TABLE team_members ADD COLUMN password_hash TEXT")
+            if "active" not in columns:
+                connection.execute(
+                    "ALTER TABLE team_members ADD COLUMN active INTEGER NOT NULL DEFAULT 1"
+                )
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_email "
+                "ON team_members(lower(email)) WHERE email IS NOT NULL AND email != ''"
             )
 
     def _ensure_defaults(self, actor_id: str, owner_name: str) -> None:
@@ -135,8 +156,52 @@ class SQLiteSettingsStore:
             "full_name": row["full_name"],
             "role": row["role"],
             "telegram_linked": bool(row["telegram_linked"]),
+            "email": row["email"] or "",
+            "active": bool(row["active"]),
             "created_at": row["created_at"],
         }
+
+    @staticmethod
+    def _auth_member(row: sqlite3.Row) -> dict[str, object]:
+        member = SQLiteSettingsStore._member(row)
+        member["actor_id"] = row["actor_id"]
+        member["password_hash"] = row["password_hash"] or ""
+        return member
+
+    def ensure_owner_login(
+        self, actor_id: str, owner_name: str, *, email: str, password: str
+    ) -> None:
+        self._ensure_defaults(actor_id, owner_name)
+        with self._lock, self._connect() as connection:
+            owner = connection.execute(
+                "SELECT * FROM team_members WHERE actor_id = ? AND role = 'owner' "
+                "ORDER BY created_at LIMIT 1",
+                (actor_id,),
+            ).fetchone()
+            if owner is None:
+                raise SettingsConflictError("Owner profili yaratilmadi")
+            next_email = owner["email"] or email.strip().lower()
+            next_hash = owner["password_hash"] or hash_password(password)
+            connection.execute(
+                "UPDATE team_members SET email = ?, password_hash = ?, active = 1 "
+                "WHERE id = ?",
+                (next_email, next_hash, owner["id"]),
+            )
+
+    def find_login_member(self, identifier: str) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM team_members WHERE lower(email) = lower(?) LIMIT 1",
+                (identifier.strip(),),
+            ).fetchone()
+        return self._auth_member(row) if row else None
+
+    def get_login_member(self, member_id: str) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM team_members WHERE id = ? LIMIT 1", (member_id,)
+            ).fetchone()
+        return self._auth_member(row) if row else None
 
     @staticmethod
     def _category(row: sqlite3.Row) -> dict[str, object]:
@@ -193,18 +258,39 @@ class SQLiteSettingsStore:
         return [self._member(row) for row in rows]
 
     def create_member(
-        self, actor_id: str, owner_name: str, *, full_name: str, role: str
+        self,
+        actor_id: str,
+        owner_name: str,
+        *,
+        full_name: str,
+        role: str,
+        email: str | None = None,
+        password_hash: str | None = None,
     ) -> dict[str, object]:
         self._ensure_defaults(actor_id, owner_name)
         member_id = str(uuid.uuid4())
         with self._lock, self._connect() as connection:
+            if email and connection.execute(
+                "SELECT 1 FROM team_members WHERE lower(email) = lower(?)",
+                (email.strip(),),
+            ).fetchone():
+                raise SettingsConflictError("Bu email allaqachon ishlatilgan")
             connection.execute(
                 """
                 INSERT INTO team_members (
-                    id, actor_id, full_name, role, telegram_linked, created_at
-                ) VALUES (?, ?, ?, ?, 0, ?)
+                    id, actor_id, full_name, role, telegram_linked,
+                    email, password_hash, active, created_at
+                ) VALUES (?, ?, ?, ?, 0, ?, ?, 1, ?)
                 """,
-                (member_id, actor_id, full_name, role, datetime.now(UTC).isoformat()),
+                (
+                    member_id,
+                    actor_id,
+                    full_name,
+                    role,
+                    email.strip().lower() if email else None,
+                    password_hash,
+                    datetime.now(UTC).isoformat(),
+                ),
             )
             row = connection.execute(
                 "SELECT * FROM team_members WHERE actor_id = ? AND id = ?",
@@ -213,7 +299,15 @@ class SQLiteSettingsStore:
         return self._member(row)
 
     def update_member(
-        self, actor_id: str, member_id: str, *, full_name: str, role: str
+        self,
+        actor_id: str,
+        member_id: str,
+        *,
+        full_name: str,
+        role: str,
+        email: str | None = None,
+        password_hash: str | None = None,
+        active: bool | None = None,
     ) -> dict[str, object]:
         with self._lock, self._connect() as connection:
             current = connection.execute(
@@ -222,16 +316,34 @@ class SQLiteSettingsStore:
             ).fetchone()
             if current is None:
                 raise SettingsItemNotFoundError(member_id)
-            if current["role"] == "owner" and role != "owner":
-                owner_count = connection.execute(
-                    "SELECT COUNT(*) FROM team_members WHERE actor_id = ? AND role = 'owner'",
-                    (actor_id,),
+            if current["role"] == "owner" and (role != "owner" or active is False):
+                other_active_owners = connection.execute(
+                    "SELECT COUNT(*) FROM team_members "
+                    "WHERE actor_id = ? AND role = 'owner' AND active = 1 AND id != ?",
+                    (actor_id, member_id),
                 ).fetchone()[0]
-                if owner_count <= 1:
-                    raise SettingsConflictError("Kamida bitta owner qolishi kerak")
+                if other_active_owners == 0:
+                    raise SettingsConflictError("Kamida bitta faol owner qolishi kerak")
+            next_email = email.strip().lower() if email is not None else current["email"]
+            if next_email and connection.execute(
+                "SELECT 1 FROM team_members WHERE lower(email) = lower(?) AND id != ?",
+                (next_email, member_id),
+            ).fetchone():
+                raise SettingsConflictError("Bu email allaqachon ishlatilgan")
+            next_hash = password_hash or current["password_hash"]
+            next_active = int(active) if active is not None else current["active"]
             connection.execute(
-                "UPDATE team_members SET full_name = ?, role = ? WHERE actor_id = ? AND id = ?",
-                (full_name, role, actor_id, member_id),
+                "UPDATE team_members SET full_name = ?, role = ?, email = ?, "
+                "password_hash = ?, active = ? WHERE actor_id = ? AND id = ?",
+                (
+                    full_name,
+                    role,
+                    next_email,
+                    next_hash,
+                    next_active,
+                    actor_id,
+                    member_id,
+                ),
             )
             row = connection.execute(
                 "SELECT * FROM team_members WHERE actor_id = ? AND id = ?",
@@ -248,12 +360,13 @@ class SQLiteSettingsStore:
             if row is None:
                 raise SettingsItemNotFoundError(member_id)
             if row["role"] == "owner":
-                owner_count = connection.execute(
-                    "SELECT COUNT(*) FROM team_members WHERE actor_id = ? AND role = 'owner'",
-                    (actor_id,),
+                other_active_owners = connection.execute(
+                    "SELECT COUNT(*) FROM team_members "
+                    "WHERE actor_id = ? AND role = 'owner' AND active = 1 AND id != ?",
+                    (actor_id, member_id),
                 ).fetchone()[0]
-                if owner_count <= 1:
-                    raise SettingsConflictError("Oxirgi ownerni o'chirib bo'lmaydi")
+                if other_active_owners == 0:
+                    raise SettingsConflictError("Oxirgi faol ownerni o'chirib bo'lmaydi")
             connection.execute(
                 "DELETE FROM team_members WHERE actor_id = ? AND id = ?",
                 (actor_id, member_id),

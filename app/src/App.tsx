@@ -10,7 +10,9 @@ import { ReportsPage } from '@/pages/Reports'
 import { AuditLogPage } from '@/pages/AuditLog'
 import { SettingsPage } from '@/pages/Settings'
 import { UsersPage } from '@/pages/Users'
-import { LoadingState } from '@/components/ui/States'
+import { LoadingState, PermissionDeniedState } from '@/components/ui/States'
+import { AppShell } from '@/components/layout/AppShell'
+import { useI18n } from '@/i18n'
 
 const ROUTES: Record<string, () => ReactElement> = {
   '/': DashboardPage,
@@ -26,9 +28,13 @@ const ROUTES: Record<string, () => ReactElement> = {
 export function App() {
   const { session, loading } = useAuth()
   const { path } = useRouter()
+  const { t } = useI18n()
 
   if (loading) return <LoadingState />
   if (!session) return <LoginPage />
+  if (session.role !== 'owner' && ['/users', '/audit', '/settings'].includes(path)) {
+    return <AppShell title={t('state.permissionDenied')}><PermissionDeniedState /></AppShell>
+  }
 
   const Page = ROUTES[path] ?? DashboardPage
   return <Page />

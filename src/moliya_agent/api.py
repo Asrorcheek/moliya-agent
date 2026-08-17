@@ -10,7 +10,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from .auth import InvalidSessionError, Principal, SessionManager
+from .auth import (
+    InvalidSessionError,
+    Principal,
+    SessionManager,
+    hash_password,
+    verify_password,
+)
 from .config import Settings
 from .domain import DomainValidationError, DraftStatus, EntryKind, PaymentMethod
 from .factory import build_service
@@ -61,11 +67,27 @@ class BusinessProfileRequest(BaseModel):
     timezone: Literal["Asia/Tashkent"] = "Asia/Tashkent"
 
 
-class TeamMemberRequest(BaseModel):
+class TeamMemberCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     full_name: str = Field(min_length=2, max_length=160)
+    email: str = Field(
+        min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+    )
+    password: str = Field(min_length=10, max_length=256)
     role: Literal["owner", "manager", "accountant"]
+
+
+class TeamMemberUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    full_name: str = Field(min_length=2, max_length=160)
+    email: str = Field(
+        min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+    )
+    password: str | None = Field(default=None, min_length=10, max_length=256)
+    role: Literal["owner", "manager", "accountant"]
+    active: bool = True
 
 
 class CategoryRequest(BaseModel):
@@ -80,6 +102,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     service = build_service(resolved_settings)
     settings_store = SQLiteSettingsStore(resolved_settings.db_path)
+    settings_store.ensure_owner_login(
+        resolved_settings.web_actor_id,
+        resolved_settings.web_username,
+        email=resolved_settings.web_username,
+        password=resolved_settings.web_password,
+    )
     app = FastAPI(title="Moliya AI Agent", version="0.1.0")
     sessions = SessionManager(resolved_settings.session_secret)
 
@@ -90,10 +118,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if x_moliya_token and secrets.compare_digest(
             x_moliya_token, resolved_settings.internal_token
         ):
-            return Principal(actor_id="", username="internal", authentication="token")
+            return Principal(
+                actor_id="", username="internal", authentication="token", role="owner"
+            )
         if moliya_session:
             try:
-                return sessions.verify(moliya_session)
+                signed = sessions.verify(moliya_session)
+                member = (
+                    settings_store.get_login_member(signed.user_id)
+                    if signed.user_id
+                    else settings_store.find_login_member(signed.username)
+                )
+                if (
+                    member
+                    and member["active"]
+                    and member["actor_id"] == signed.actor_id
+                ):
+                    return Principal(
+                        actor_id=str(member["actor_id"]),
+                        username=str(member["email"]),
+                        authentication="session",
+                        role=str(member["role"]),
+                        user_id=str(member["id"]),
+                    )
             except InvalidSessionError:
                 pass
         raise HTTPException(status_code=401, detail="Autentifikatsiya talab qilinadi")
@@ -106,6 +153,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not requested_actor:
             raise HTTPException(status_code=422, detail="actor_id talab qilinadi")
         return requested_actor
+
+    def require_owner(principal: Principal) -> None:
+        if principal.authentication == "session" and principal.role != "owner":
+            raise HTTPException(status_code=403, detail="Faqat owner uchun ruxsat")
 
     @app.exception_handler(DraftNotFoundError)
     async def draft_not_found_handler(_request, _exc):
@@ -147,18 +198,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     @app.post("/v1/session")
-    def login(request: LoginRequest, response: Response) -> dict[str, str]:
-        username_matches = secrets.compare_digest(
-            request.username, resolved_settings.web_username
-        )
-        password_matches = secrets.compare_digest(
-            request.password, resolved_settings.web_password
-        )
-        if not (username_matches and password_matches):
+    def login(request: LoginRequest, response: Response) -> dict[str, object]:
+        member = settings_store.find_login_member(request.username)
+        if (
+            not member
+            or not member["active"]
+            or not verify_password(request.password, str(member["password_hash"]))
+        ):
             raise HTTPException(status_code=401, detail="Login yoki parol noto'g'ri")
         token = sessions.create(
-            username=resolved_settings.web_username,
-            actor_id=resolved_settings.web_actor_id,
+            username=str(member["email"]),
+            actor_id=str(member["actor_id"]),
+            role=str(member["role"]),
+            user_id=str(member["id"]),
         )
         response.set_cookie(
             "moliya_session",
@@ -170,13 +222,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path="/",
         )
         return {
-            "username": resolved_settings.web_username,
-            "actor_id": resolved_settings.web_actor_id,
+            "username": member["email"],
+            "display_name": member["full_name"],
+            "actor_id": member["actor_id"],
+            "role": member["role"],
+            "user_id": member["id"],
         }
 
     @app.get("/v1/session")
-    def current_session(principal: Principal = Depends(authenticate)) -> dict[str, str]:
-        return {"username": principal.username, "actor_id": principal.actor_id}
+    def current_session(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        member = settings_store.get_login_member(principal.user_id or "")
+        return {
+            "username": principal.username,
+            "display_name": member["full_name"] if member else principal.username,
+            "actor_id": principal.actor_id,
+            "role": principal.role,
+            "user_id": principal.user_id,
+        }
 
     @app.delete("/v1/session")
     def logout(response: Response) -> dict[str, bool]:
@@ -309,6 +371,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> dict[str, object]:
+        require_owner(principal)
         items, total = service.list_audit_events(
             actor_id=actor_for(principal, actor_id), limit=limit, offset=offset
         )
@@ -319,6 +382,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/settings", dependencies=[Depends(authenticate)])
     def get_settings(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        require_owner(principal)
         actor_id = settings_actor(principal)
         return {
             "business": settings_store.get_business(actor_id, principal.username),
@@ -341,6 +405,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: BusinessProfileRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
+        require_owner(principal)
         return {
             "business": settings_store.update_business(
                 settings_actor(principal),
@@ -354,6 +419,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/v1/users", dependencies=[Depends(authenticate)])
     def list_users(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        require_owner(principal)
         return {
             "items": settings_store.list_members(
                 settings_actor(principal), principal.username
@@ -362,30 +428,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/v1/users", status_code=201, dependencies=[Depends(authenticate)])
     def create_user(
-        request: TeamMemberRequest,
+        request: TeamMemberCreateRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
+        require_owner(principal)
         return {
             "user": settings_store.create_member(
                 settings_actor(principal),
                 principal.username,
                 full_name=request.full_name.strip(),
                 role=request.role,
+                email=request.email,
+                password_hash=hash_password(request.password),
             )
         }
 
     @app.put("/v1/users/{user_id}", dependencies=[Depends(authenticate)])
     def update_user(
         user_id: str,
-        request: TeamMemberRequest,
+        request: TeamMemberUpdateRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
+        require_owner(principal)
         return {
             "user": settings_store.update_member(
                 settings_actor(principal),
                 user_id,
                 full_name=request.full_name.strip(),
                 role=request.role,
+                email=request.email,
+                password_hash=(
+                    hash_password(request.password) if request.password else None
+                ),
+                active=request.active,
             )
         }
 
@@ -393,11 +468,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def delete_user(
         user_id: str, principal: Principal = Depends(authenticate)
     ) -> dict[str, bool]:
+        require_owner(principal)
         settings_store.delete_member(settings_actor(principal), user_id)
         return {"deleted": True}
 
     @app.get("/v1/categories", dependencies=[Depends(authenticate)])
     def list_categories(principal: Principal = Depends(authenticate)) -> dict[str, object]:
+        require_owner(principal)
         return {
             "items": settings_store.list_categories(
                 settings_actor(principal), principal.username
@@ -409,6 +486,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: CategoryRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
+        require_owner(principal)
         return {
             "category": settings_store.create_category(
                 settings_actor(principal),
@@ -425,6 +503,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: CategoryRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
+        require_owner(principal)
         return {
             "category": settings_store.update_category(
                 settings_actor(principal),
@@ -439,6 +518,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def delete_category(
         category_id: str, principal: Principal = Depends(authenticate)
     ) -> dict[str, bool]:
+        require_owner(principal)
         settings_store.delete_category(settings_actor(principal), category_id)
         return {"deleted": True}
 

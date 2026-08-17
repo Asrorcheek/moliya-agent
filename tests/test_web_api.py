@@ -8,11 +8,22 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from moliya_agent.api import create_app
-from moliya_agent.auth import InvalidSessionError, SessionManager
+from moliya_agent.auth import (
+    InvalidSessionError,
+    SessionManager,
+    hash_password,
+    verify_password,
+)
 from moliya_agent.config import Settings
 
 
 class SessionManagerTests(unittest.TestCase):
+    def test_password_hash_does_not_store_plaintext_and_verifies(self) -> None:
+        encoded = hash_password("safe-manager-password")
+        self.assertNotIn("safe-manager-password", encoded)
+        self.assertTrue(verify_password("safe-manager-password", encoded))
+        self.assertFalse(verify_password("wrong-password", encoded))
+
     def test_signed_session_round_trip_and_tamper_protection(self) -> None:
         sessions = SessionManager("test-session-secret")
         token = sessions.create(username="owner", actor_id="web-owner")
@@ -91,13 +102,51 @@ class WebRouteTests(unittest.TestCase):
                 self.assertEqual(business.json()["business"]["name"], "Test Business")
 
                 user = client.post(
-                    "/v1/users", json={"full_name": "Test Manager", "role": "manager"}
+                    "/v1/users",
+                    json={
+                        "full_name": "Test Manager",
+                        "email": "manager@example.com",
+                        "password": "safe-manager-password",
+                        "role": "manager",
+                    },
                 )
                 self.assertEqual(user.status_code, 201)
                 user_id = user.json()["user"]["id"]
+
+                self.assertEqual(client.delete("/v1/session").status_code, 200)
+                manager_login = client.post(
+                    "/v1/session",
+                    json={
+                        "username": "manager@example.com",
+                        "password": "safe-manager-password",
+                    },
+                )
+                self.assertEqual(manager_login.status_code, 200)
+                self.assertEqual(manager_login.json()["role"], "manager")
+                self.assertEqual(
+                    client.get(
+                        "/v1/reports/dashboard", params={"month": "2026-08"}
+                    ).status_code,
+                    200,
+                )
+                self.assertEqual(client.get("/v1/users").status_code, 403)
+                self.assertEqual(client.get("/v1/settings").status_code, 403)
+                self.assertEqual(client.get("/v1/audit-events").status_code, 403)
+
+                self.assertEqual(client.delete("/v1/session").status_code, 200)
+                owner_login = client.post(
+                    "/v1/session",
+                    json={"username": "owner", "password": "safe-test-password"},
+                )
+                self.assertEqual(owner_login.status_code, 200)
                 changed_user = client.put(
                     f"/v1/users/{user_id}",
-                    json={"full_name": "Test Accountant", "role": "accountant"},
+                    json={
+                        "full_name": "Test Accountant",
+                        "email": "manager@example.com",
+                        "role": "accountant",
+                        "active": True,
+                    },
                 )
                 self.assertEqual(changed_user.json()["user"]["role"], "accountant")
                 self.assertEqual(client.delete(f"/v1/users/{user_id}").status_code, 200)

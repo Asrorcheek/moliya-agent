@@ -37,6 +37,14 @@ class SettingsStoreTests(unittest.TestCase):
         self.assertEqual(users[0]["role"], "owner")
         with self.assertRaises(SettingsConflictError):
             self.store.delete_member("actor-1", str(users[0]["id"]))
+        with self.assertRaises(SettingsConflictError):
+            self.store.update_member(
+                "actor-1",
+                str(users[0]["id"]),
+                full_name="Admin",
+                role="owner",
+                active=False,
+            )
 
         member = self.store.create_member(
             "actor-1", "admin", full_name="Manager One", role="manager"

@@ -1152,6 +1152,33 @@ select option {
   font-size: 13px;
 }
 
+.admin-drawer-form label small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.password-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.password-editor-row button {
+  white-space: nowrap;
+}
+
+.user-active-toggle {
+  flex-direction: row !important;
+  align-items: center;
+  cursor: pointer;
+}
+
+.user-active-toggle input {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0;
+}
+
 .role-help {
   display: flex;
   flex-direction: column;
@@ -1401,5 +1428,8 @@ select option {
   }
   .admin-drawer {
     padding: var(--space-5);
+  }
+  .password-editor-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

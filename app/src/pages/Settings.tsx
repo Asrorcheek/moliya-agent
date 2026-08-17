@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ErrorState, LoadingState } from '@/components/ui/States'
 import { ApiError, moliyaApi } from '@/lib/apiClient'
-import type { AppSettings, AppUser, Category, UserRole } from '@/lib/types'
+import type { AppSettings, Category } from '@/lib/types'
 
-type DeleteTarget = { kind: 'user'; item: AppUser } | { kind: 'category'; item: Category }
+type DeleteTarget = { kind: 'category'; item: Category }
 
 const fieldStyle: CSSProperties = {
   width: '100%', minWidth: 0, padding: '9px 11px', border: '1px solid var(--color-border-strong)',
@@ -30,11 +30,8 @@ export function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null)
   const [editBusiness, setEditBusiness] = useState(false)
-  const [editUserId, setEditUserId] = useState<string | null>(null)
-  const [showAddUser, setShowAddUser] = useState(false)
   const [manageCategories, setManageCategories] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
-  const [newUser, setNewUser] = useState<{ full_name: string; role: UserRole }>({ full_name: '', role: 'manager' })
   const [newCategoryName, setNewCategoryName] = useState('')
 
   const load = useCallback(async () => {
@@ -57,29 +54,6 @@ export function SettingsPage() {
     try {
       const response = await moliyaApi.updateBusiness(settings.business)
       setSettings({ ...settings, business: response.business }); setEditBusiness(false); success()
-    } catch (error) { failure(error) }
-    finally { setBusy(null) }
-  }
-
-  const addUser = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!settings || !newUser.full_name.trim()) return
-    setBusy('new-user'); setNotice(null)
-    try {
-      const response = await moliyaApi.createUser({ ...newUser, full_name: newUser.full_name.trim() })
-      setSettings({ ...settings, users: [...settings.users, response.user] })
-      setNewUser({ full_name: '', role: 'manager' }); setShowAddUser(false); success()
-    } catch (error) { failure(error) }
-    finally { setBusy(null) }
-  }
-
-  const saveUser = async (user: AppUser) => {
-    if (!settings || !user.full_name.trim()) return
-    setBusy(`user-${user.id}`); setNotice(null)
-    try {
-      const response = await moliyaApi.updateUser(user.id, { full_name: user.full_name.trim(), role: user.role })
-      setSettings({ ...settings, users: settings.users.map((item) => item.id === user.id ? response.user : item) })
-      setEditUserId(null); success()
     } catch (error) { failure(error) }
     finally { setBusy(null) }
   }
@@ -111,25 +85,18 @@ export function SettingsPage() {
   const confirmDelete = async () => {
     if (!settings || !deleteTarget) return
     try {
-      if (deleteTarget.kind === 'user') {
-        await moliyaApi.deleteUser(deleteTarget.item.id)
-        setSettings({ ...settings, users: settings.users.filter((item) => item.id !== deleteTarget.item.id) })
-      } else {
-        await moliyaApi.deleteCategory(deleteTarget.item.id)
-        setSettings({ ...settings, categories: settings.categories.filter((item) => item.id !== deleteTarget.item.id) })
-      }
+      await moliyaApi.deleteCategory(deleteTarget.item.id)
+      setSettings({ ...settings, categories: settings.categories.filter((item) => item.id !== deleteTarget.item.id) })
       setDeleteTarget(null); success()
     } catch (error) { failure(error); throw error }
   }
 
-  const patchUser = (id: string, patch: Partial<AppUser>) => settings && setSettings({ ...settings, users: settings.users.map((item) => item.id === id ? { ...item, ...patch } : item) })
   const patchCategory = (id: string, name: string) => {
     if (!settings) return
     const key = locale === 'ru' ? 'name_ru' : locale === 'en' ? 'name_en' : 'name_uz'
     setSettings({ ...settings, categories: settings.categories.map((item) => item.id === id ? { ...item, [key]: name } : item) })
   }
   const categoryLabel = (category: Category) => locale === 'ru' ? category.name_ru : locale === 'en' ? category.name_en : category.name_uz
-  const roleLabel = (role: UserRole) => role === 'owner' ? t('settings.roleOwner') : role === 'manager' ? t('settings.roleManager') : t('settings.roleAccountant')
 
   if (loading) return <AppShell title={t('settings.title')}><LoadingState /></AppShell>
   if (loadError || !settings) return <AppShell title={t('settings.title')}><ErrorState description={loadError ?? undefined} onRetry={load} /></AppShell>
@@ -176,35 +143,6 @@ export function SettingsPage() {
             </div>
           </Card>
         </div>
-
-        <Card>
-          <div className="card-heading-row">
-            <div><h3>{t('settings.users')}</h3><p className="section-count">{settings.users.length}</p></div>
-            <Button type="button" variant={showAddUser ? 'ghost' : 'secondary'} onClick={() => setShowAddUser(!showAddUser)}>{showAddUser ? t('common.cancel') : `+ ${t('settings.addUser')}`}</Button>
-          </div>
-          {showAddUser && (
-            <form onSubmit={addUser} className="settings-add-row settings-inline-form">
-              <input required minLength={2} value={newUser.full_name} onChange={(event) => setNewUser({ ...newUser, full_name: event.target.value })} placeholder={t('settings.fullName')} style={fieldStyle} autoFocus />
-              <select value={newUser.role} onChange={(event) => setNewUser({ ...newUser, role: event.target.value as UserRole })} style={fieldStyle}><option value="manager">{t('settings.roleManager')}</option><option value="accountant">{t('settings.roleAccountant')}</option><option value="owner">{t('settings.roleOwner')}</option></select>
-              <Button type="submit" variant="primary" disabled={busy === 'new-user'}>{t('settings.add')}</Button>
-            </form>
-          )}
-          <div className="simple-list">
-            {settings.users.map((user) => editUserId === user.id ? (
-              <div key={user.id} className="settings-edit-row">
-                <input value={user.full_name} onChange={(event) => patchUser(user.id, { full_name: event.target.value })} style={fieldStyle} />
-                <select value={user.role} onChange={(event) => patchUser(user.id, { role: event.target.value as UserRole })} style={fieldStyle}><option value="owner">{t('settings.roleOwner')}</option><option value="manager">{t('settings.roleManager')}</option><option value="accountant">{t('settings.roleAccountant')}</option></select>
-                <Button type="button" onClick={() => void saveUser(user)}>{t('common.save')}</Button>
-                <Button type="button" variant="ghost" onClick={() => { setEditUserId(null); void load() }}>{t('common.cancel')}</Button>
-              </div>
-            ) : (
-              <div key={user.id} className="simple-list-row">
-                <div><div style={{ fontWeight: 500 }}>{user.full_name}</div><div style={{ marginTop: 3 }}><Badge tone="neutral">{roleLabel(user.role)}</Badge></div></div>
-                <div className="row-actions"><Button type="button" variant="ghost" onClick={() => setEditUserId(user.id)}>{t('settings.edit')}</Button>{(user.role !== 'owner' || settings.users.filter((item) => item.role === 'owner').length > 1) && <Button type="button" variant="ghost" onClick={() => setDeleteTarget({ kind: 'user', item: user })} style={{ color: 'var(--color-danger)' }}>{t('settings.delete')}</Button>}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         <Card>
           <div className="card-heading-row">

@@ -1,12 +1,14 @@
 import { useI18n, type Locale } from '@/i18n'
 import { NavIcon } from '@/components/ui/NavIcon'
 import { Link, useRouter } from '@/router'
+import { useAuth } from '@/lib/authContext'
 
 const LOCALES: Locale[] = ['uz', 'ru', 'en']
 
 export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => void }) {
   const { locale, setLocale, t } = useI18n()
   const { path } = useRouter()
+  const { session } = useAuth()
 
   return (
     <header className="metronic-topbar">
@@ -25,8 +27,8 @@ export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: ()
         <nav className="topbar-nav" aria-label="Tezkor navigatsiya">
           <Link to="/" className={path === '/' ? 'active' : ''}>Home</Link>
           <Link to="/reports" className={path === '/reports' ? 'active' : ''}>{t('nav.reports')}</Link>
-          <Link to="/users" className={path === '/users' ? 'active' : ''}>{t('nav.users')}</Link>
-          <Link to="/settings" className={path === '/settings' ? 'active' : ''}>{t('nav.settings')}</Link>
+          {session?.role === 'owner' && <Link to="/users" className={path === '/users' ? 'active' : ''}>{t('nav.users')}</Link>}
+          {session?.role === 'owner' && <Link to="/settings" className={path === '/settings' ? 'active' : ''}>{t('nav.settings')}</Link>}
         </nav>
       </div>
 
@@ -46,7 +48,7 @@ export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: ()
           </button>
         ))}
         </div>
-        <span className="topbar-avatar">A</span>
+        <span className="topbar-avatar">{session?.displayName.slice(0, 1).toUpperCase() ?? 'A'}</span>
       </div>
     </header>
   )

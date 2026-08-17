@@ -17,6 +17,7 @@ export function Sidebar() {
   const { t } = useI18n()
   const { path } = useRouter()
   const { session, logout } = useAuth()
+  const visibleItems = session?.role === 'owner' ? NAV_ITEMS : NAV_ITEMS.filter((item) => item.group !== 'ADMIN')
 
   return (
     <aside className="metronic-sidebar">
@@ -26,11 +27,11 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar-nav" aria-label="Asosiy navigatsiya">
-        {NAV_ITEMS.map((item, index) => {
+        {visibleItems.map((item, index) => {
           const active = path === item.to
           return (
             <div key={item.to}>
-              {(index === 0 || NAV_ITEMS[index - 1].group !== item.group) && <div className="sidebar-group-label">{item.group}</div>}
+              {(index === 0 || visibleItems[index - 1].group !== item.group) && <div className="sidebar-group-label">{item.group}</div>}
               <Link to={item.to} className={`nav-link ${active ? 'active' : ''}`}>
                 <NavIcon name={item.icon} size={18} />
                 <span>{t(item.key)}</span>
