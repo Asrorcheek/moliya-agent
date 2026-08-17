@@ -9,6 +9,7 @@ import { AddTransactionPage } from '@/pages/AddTransaction'
 import { ReportsPage } from '@/pages/Reports'
 import { AuditLogPage } from '@/pages/AuditLog'
 import { SettingsPage } from '@/pages/Settings'
+import { UsersPage } from '@/pages/Users'
 import { LoadingState } from '@/components/ui/States'
 
 const ROUTES: Record<string, () => ReactElement> = {
@@ -18,6 +19,7 @@ const ROUTES: Record<string, () => ReactElement> = {
   '/add': AddTransactionPage,
   '/reports': ReportsPage,
   '/audit': AuditLogPage,
+  '/users': UsersPage,
   '/settings': SettingsPage,
 }
 

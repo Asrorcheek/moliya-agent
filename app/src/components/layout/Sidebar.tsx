@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/add', key: 'nav.add' as const },
   { to: '/reports', key: 'nav.reports' as const },
   { to: '/audit', key: 'nav.audit' as const },
+  { to: '/users', key: 'nav.users' as const },
   { to: '/settings', key: 'nav.settings' as const },
 ]
 

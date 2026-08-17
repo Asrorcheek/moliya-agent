@@ -135,6 +135,7 @@ class SQLiteSettingsStore:
             "full_name": row["full_name"],
             "role": row["role"],
             "telegram_linked": bool(row["telegram_linked"]),
+            "created_at": row["created_at"],
         }
 
     @staticmethod

@@ -1,4 +1,4 @@
-type IconName = 'menu' | 'close' | 'home' | 'clock' | 'plus' | 'list' | 'chart' | 'history' | 'settings' | 'logout'
+type IconName = 'menu' | 'close' | 'home' | 'clock' | 'plus' | 'list' | 'chart' | 'history' | 'users' | 'settings' | 'logout'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
@@ -9,6 +9,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   list: <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />,
   chart: <path d="M5 19V9M12 19V5M19 19v-7M3 19h18" />,
   history: <path d="M4 8V4m0 0h4M4.5 4.5A9 9 0 1 1 3 14M12 7v5l3 2" />,
+  users: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19v-1.5A4.5 4.5 0 0 1 8 13h2a4.5 4.5 0 0 1 4.5 4.5V19M16 5.5a3 3 0 0 1 0 5.8M17 13.5a4.5 4.5 0 0 1 3.5 4.4V19" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2-1.2L14.2 3h-4.4l-.4 2.7a8 8 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2 1.2l.4 2.7h4.4l.4-2.7a8 8 0 0 0 2-1.2l2.4 1 2-3.4-2-1.5A7 7 0 0 0 19 12Z" /></>,
   logout: <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />,
 }

@@ -11,6 +11,7 @@ const ITEMS = [
   { to: '/add', key: 'nav.add' as const, icon: 'plus' as const },
   { to: '/reports', key: 'nav.reports' as const, icon: 'chart' as const },
   { to: '/audit', key: 'nav.audit' as const, icon: 'history' as const },
+  { to: '/users', key: 'nav.users' as const, icon: 'users' as const },
   { to: '/settings', key: 'nav.settings' as const, icon: 'settings' as const },
 ]
 

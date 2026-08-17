@@ -74,6 +74,7 @@ export interface AppUser {
   full_name: string
   role: UserRole
   telegram_linked: boolean
+  created_at: string
 }
 
 export interface TransactionEntry {

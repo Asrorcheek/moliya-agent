@@ -41,6 +41,7 @@ class SettingsStoreTests(unittest.TestCase):
         member = self.store.create_member(
             "actor-1", "admin", full_name="Manager One", role="manager"
         )
+        self.assertIn("created_at", member)
         changed = self.store.update_member(
             "actor-1",
             str(member["id"]),
