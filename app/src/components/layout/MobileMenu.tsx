@@ -8,7 +8,6 @@ const ITEMS = [
   { to: '/', key: 'nav.dashboard' as const, icon: 'home' as const },
   { to: '/drafts', key: 'nav.drafts' as const, icon: 'clock' as const },
   { to: '/transactions', key: 'nav.transactions' as const, icon: 'list' as const },
-  { to: '/add', key: 'nav.add' as const, icon: 'plus' as const },
   { to: '/reports', key: 'nav.reports' as const, icon: 'chart' as const },
   { to: '/audit', key: 'nav.audit' as const, icon: 'history' as const },
   { to: '/users', key: 'nav.users' as const, icon: 'users' as const },

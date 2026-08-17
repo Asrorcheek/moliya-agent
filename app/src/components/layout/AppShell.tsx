@@ -3,9 +3,16 @@ import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { MobileNav } from './MobileNav'
 import { MobileMenu } from './MobileMenu'
+import { useI18n } from '@/i18n'
+import { Link, useRouter } from '@/router'
+import { NavIcon } from '@/components/ui/NavIcon'
 
 export function AppShell({ title, children }: { title: string; children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { path } = useRouter()
+  const { t } = useI18n()
+  const adminPaths = new Set(['/users', '/audit', '/settings'])
+  const showQuickAdd = path !== '/add' && !adminPaths.has(path)
 
   return (
     <div className="app-shell">
@@ -22,6 +29,12 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
           {children}
         </main>
       </div>
+      {showQuickAdd && (
+        <Link to="/add" className="floating-add-button" aria-label={t('nav.add')}>
+          <NavIcon name="plus" size={19} />
+          <span>{t('nav.add')}</span>
+        </Link>
+      )}
       <MobileNav />
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>

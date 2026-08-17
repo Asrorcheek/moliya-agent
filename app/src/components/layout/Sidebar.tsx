@@ -7,7 +7,6 @@ const NAV_ITEMS = [
   { to: '/', key: 'nav.dashboard' as const, icon: 'home' as const, group: 'ASOSIY' },
   { to: '/drafts', key: 'nav.drafts' as const, icon: 'clock' as const, group: 'MOLIYA' },
   { to: '/transactions', key: 'nav.transactions' as const, icon: 'list' as const, group: 'MOLIYA' },
-  { to: '/add', key: 'nav.add' as const, icon: 'plus' as const, group: 'MOLIYA' },
   { to: '/reports', key: 'nav.reports' as const, icon: 'chart' as const, group: 'MOLIYA' },
   { to: '/users', key: 'nav.users' as const, icon: 'users' as const, group: 'ADMIN' },
   { to: '/audit', key: 'nav.audit' as const, icon: 'history' as const, group: 'ADMIN' },

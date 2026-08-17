@@ -5,7 +5,6 @@ import { NavIcon } from '@/components/ui/NavIcon'
 const ITEMS = [
   { to: '/', key: 'nav.mobile.dashboard' as const, icon: 'home' as const },
   { to: '/drafts', key: 'nav.mobile.drafts' as const, icon: 'clock' as const },
-  { to: '/add', key: 'nav.mobile.add' as const, icon: 'plus' as const },
   { to: '/transactions', key: 'nav.mobile.transactions' as const, icon: 'list' as const },
   { to: '/reports', key: 'nav.mobile.reports' as const, icon: 'chart' as const },
 ]
@@ -47,7 +46,7 @@ export function MobileNav() {
               lineHeight: 1.2,
               textDecoration: 'none',
               color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              width: '20%',
+              width: '25%',
               minWidth: 0,
               whiteSpace: 'nowrap',
               overflow: 'hidden',

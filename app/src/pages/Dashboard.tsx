@@ -62,7 +62,6 @@ export function DashboardPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <SyncBadge status={data.sync_status} lastSyncedAt={data.last_synced_at} />
-              <Link to="/add" className="primary-link-button">+ {t('dashboard.quickAdd')}</Link>
             </div>
           </div>
 
