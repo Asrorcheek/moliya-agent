@@ -8,13 +8,17 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="app-shell">
       <div className="desktop-sidebar">
         <Sidebar />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="app-shell-body">
         <TopBar title={title} onMenuClick={() => setMenuOpen(true)} />
-        <main style={{ padding: 'var(--space-5)', paddingBottom: 88, maxWidth: 1180, margin: '0 auto' }}>
+        <main className="app-content">
+          <div className="page-heading">
+            <h1>{title}</h1>
+            <div className="page-breadcrumb"><span>Home</span><b>›</b><span>{title}</span></div>
+          </div>
           {children}
         </main>
       </div>

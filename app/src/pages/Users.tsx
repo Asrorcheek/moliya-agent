@@ -61,7 +61,6 @@ export function UsersPage() {
 
   const roleLabel = (value: UserRole) => value === 'owner' ? t('settings.roleOwner') : value === 'manager' ? t('settings.roleManager') : t('settings.roleAccountant')
   const owners = users.filter((user) => user.role === 'owner').length
-  const linked = users.filter((user) => user.telegram_linked).length
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
@@ -93,17 +92,6 @@ export function UsersPage() {
   return (
     <AppShell title={t('users.title')}>
       <div className="admin-page">
-        <div className="admin-page-heading">
-          <div><h1>{t('users.title')}</h1><p>{t('users.subtitle')}</p></div>
-          <Button variant="primary" onClick={() => setEditor({ mode: 'create', user: { full_name: '', role: 'manager' } })}>+ {t('users.add')}</Button>
-        </div>
-
-        <div className="user-stat-grid">
-          <Stat label={t('users.total')} value={users.length} detail={t('users.teamCount')} />
-          <Stat label={t('users.owners')} value={owners} detail={t('users.fullAccess')} />
-          <Stat label={t('users.telegram')} value={linked} detail={t('users.connectedCount')} />
-        </div>
-
         {notice && <div className="admin-notice" role="status">✓ {notice}</div>}
         {error && <div className="admin-notice admin-notice-danger" role="alert">{error}</div>}
 
@@ -152,10 +140,6 @@ export function UsersPage() {
 
 function UserIdentity({ user }: { user: AppUser }) {
   return <div className="user-identity"><span className="user-avatar">{initials(user.full_name)}</span><div><strong>{user.full_name}</strong><small>ID · {user.id.slice(0, 8)}</small></div></div>
-}
-
-function Stat({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return <div className="user-stat-card"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
 }
 
 function UserEditor({ editor, setEditor, roleLabel, saving, onSave }: { editor: EditorState; setEditor: (value: EditorState | null) => void; roleLabel: (role: UserRole) => string; saving: boolean; onSave: (event: FormEvent) => Promise<void> }) {

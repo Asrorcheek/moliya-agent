@@ -1,16 +1,17 @@
 import { useI18n } from '@/i18n'
 import { Link, useRouter } from '@/router'
 import { useAuth } from '@/lib/authContext'
+import { NavIcon } from '@/components/ui/NavIcon'
 
 const NAV_ITEMS = [
-  { to: '/', key: 'nav.dashboard' as const },
-  { to: '/drafts', key: 'nav.drafts' as const },
-  { to: '/transactions', key: 'nav.transactions' as const },
-  { to: '/add', key: 'nav.add' as const },
-  { to: '/reports', key: 'nav.reports' as const },
-  { to: '/audit', key: 'nav.audit' as const },
-  { to: '/users', key: 'nav.users' as const },
-  { to: '/settings', key: 'nav.settings' as const },
+  { to: '/', key: 'nav.dashboard' as const, icon: 'home' as const, group: 'ASOSIY' },
+  { to: '/drafts', key: 'nav.drafts' as const, icon: 'clock' as const, group: 'MOLIYA' },
+  { to: '/transactions', key: 'nav.transactions' as const, icon: 'list' as const, group: 'MOLIYA' },
+  { to: '/add', key: 'nav.add' as const, icon: 'plus' as const, group: 'MOLIYA' },
+  { to: '/reports', key: 'nav.reports' as const, icon: 'chart' as const, group: 'MOLIYA' },
+  { to: '/users', key: 'nav.users' as const, icon: 'users' as const, group: 'ADMIN' },
+  { to: '/audit', key: 'nav.audit' as const, icon: 'history' as const, group: 'ADMIN' },
+  { to: '/settings', key: 'nav.settings' as const, icon: 'settings' as const, group: 'ADMIN' },
 ]
 
 export function Sidebar() {
@@ -19,59 +20,38 @@ export function Sidebar() {
   const { session, logout } = useAuth()
 
   return (
-    <aside
-      style={{
-        width: 'var(--sidebar-width)',
-        flexShrink: 0,
-        borderRight: '1px solid var(--color-border)',
-        background: 'var(--color-surface)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: 'var(--space-5) var(--space-4)',
-        height: '100vh',
-        position: 'sticky',
-        top: 0,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 var(--space-2)', marginBottom: 'var(--space-6)' }}>
+    <aside className="metronic-sidebar">
+      <div className="sidebar-logo">
         <LedgerMark />
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500 }}>{t('app.name')}</span>
+        <span>{t('app.name')}</span>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }} aria-label="Asosiy navigatsiya">
-        {NAV_ITEMS.map((item) => {
+      <nav className="sidebar-nav" aria-label="Asosiy navigatsiya">
+        {NAV_ITEMS.map((item, index) => {
           const active = path === item.to
           return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="nav-link"
-              style={{
-                display: 'block',
-                padding: '10px 12px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                fontWeight: active ? 500 : 400,
-                color: active ? 'var(--color-primary-strong)' : 'var(--color-text-secondary)',
-                background: active ? 'var(--color-primary-soft)' : 'transparent',
-                textDecoration: 'none',
-              }}
-            >
-              {t(item.key)}
-            </Link>
+            <div key={item.to}>
+              {(index === 0 || NAV_ITEMS[index - 1].group !== item.group) && <div className="sidebar-group-label">{item.group}</div>}
+              <Link to={item.to} className={`nav-link ${active ? 'active' : ''}`}>
+                <NavIcon name={item.icon} size={18} />
+                <span>{t(item.key)}</span>
+                <b>›</b>
+              </Link>
+            </div>
           )
         })}
       </nav>
 
       {session && (
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 13.5, color: 'var(--color-text-secondary)' }}>{session.displayName}</div>
+        <div className="sidebar-account">
+          <span className="sidebar-account-avatar">{session.displayName.slice(0, 1).toUpperCase()}</span>
+          <div><strong>{session.displayName}</strong>
           <button
             onClick={logout}
-            style={{ textAlign: 'left', background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: 13, padding: 0 }}
           >
             {t('nav.logout')}
           </button>
+          </div>
         </div>
       )}
     </aside>
@@ -81,8 +61,7 @@ export function Sidebar() {
 function LedgerMark() {
   return (
     <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
-      <rect x="1" y="1" width="24" height="24" rx="6" fill="var(--color-primary)" />
-      <path d="M7 17.5 L11 9 L14 15 L19 8" stroke="var(--color-text-on-primary)" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 19 8.5 5h4L8 19H3Zm9 0 4.2-11 6.8 11h-5l-2.2-4-1.5 4H12Z" fill="#ff2f6d" />
     </svg>
   )
 }
