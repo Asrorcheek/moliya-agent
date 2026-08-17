@@ -101,6 +101,8 @@ const uz = {
   'drafts.needsClarification': 'Aniqlashtirish kerak',
 
   'tx.title': 'Operatsiyalar',
+  'tx.name': 'Operatsiya nomi',
+  'tx.searchName': 'Nomi yoki izohi bo‘yicha qidirish',
   'tx.dateRange': 'Sana oralig\u2019i',
   'tx.type': 'Turi',
   'tx.status': 'Holati',

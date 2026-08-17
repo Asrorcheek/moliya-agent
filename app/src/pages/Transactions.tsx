@@ -14,6 +14,7 @@ const KINDS: EntryKind[] = ['income', 'expense', 'refund', 'cost_of_goods', 'rec
 const METHODS: PaymentMethod[] = ['cash', 'card', 'transfer', 'mixed', 'unknown']
 
 interface TransactionFilters {
+  search?: string
   dateFrom?: string
   dateTo?: string
   type?: string
@@ -40,6 +41,16 @@ export function TransactionsPage() {
       })
       .then((res) => {
         let nextItems = res.items
+        if (f.search) {
+          const needle = f.search.toLocaleLowerCase()
+          nextItems = nextItems.filter((item) => [
+            item.note,
+            item.category,
+            item.counterparty,
+            item.source_id,
+            t(`entryKind.${item.kind}` as const),
+          ].some((value) => value?.toLocaleLowerCase().includes(needle)))
+        }
         if (f.counterparty) {
           const needle = f.counterparty.toLowerCase()
           nextItems = nextItems.filter((item) => item.counterparty?.toLowerCase().includes(needle))
@@ -80,6 +91,13 @@ export function TransactionsPage() {
     <AppShell title={t('tx.title')}>
       <Card style={{ marginBottom: 'var(--space-4)' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--space-3)' }}>
+          <label className="transaction-search-field">
+            <i className="ti ti-search" aria-hidden="true" />
+            <input
+              placeholder={t('tx.searchName')}
+              onChange={(e) => applyFilters({ search: e.target.value || undefined })}
+            />
+          </label>
           <input
             placeholder={t('tx.counterparty')}
             onChange={(e) => applyFilters({ counterparty: e.target.value || undefined })}
@@ -122,7 +140,7 @@ export function TransactionsPage() {
             <table className="desktop-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
-                  {[t('tx.date'), t('tx.type'), t('tx.counterparty'), t('tx.paymentMethod'), t('tx.amount')].map((h) => (
+                  {[t('tx.date'), t('tx.name'), t('tx.type'), t('tx.counterparty'), t('tx.paymentMethod'), t('tx.amount')].map((h) => (
                     <th key={h} style={{ padding: '10px 14px', fontWeight: 500, color: 'var(--color-text-secondary)' }}>{h}</th>
                   ))}
                 </tr>
@@ -143,6 +161,7 @@ export function TransactionsPage() {
                     style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
                   >
                     <td style={{ padding: '10px 14px' }}>{formatDate(tx.transaction_date)}</td>
+                    <td style={{ padding: '10px 14px', minWidth: 190 }}>{tx.note ?? tx.category ?? t(`entryKind.${tx.kind}` as const)}</td>
                     <td style={{ padding: '10px 14px' }}>{t(`entryKind.${tx.kind}` as const)}</td>
                     <td style={{ padding: '10px 14px' }}>{tx.counterparty ?? '\u2014'}</td>
                     <td style={{ padding: '10px 14px' }}>{t(`payment.${tx.payment_method}` as const)}</td>
@@ -160,7 +179,7 @@ export function TransactionsPage() {
               <Card key={tx.entry_id} style={{ padding: 'var(--space-4)' }}>
                 <div onClick={() => setSelected(tx)} style={{ cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 14 }}>{t(`entryKind.${tx.kind}` as const)}</span>
+                    <span style={{ fontSize: 14 }}>{tx.note ?? tx.category ?? t(`entryKind.${tx.kind}` as const)}</span>
                     <CurrencyAmount value={tx.amount_uzs} size="sm" />
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 4 }}>

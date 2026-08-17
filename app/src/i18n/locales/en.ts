@@ -103,6 +103,8 @@ const en: Record<TranslationKey, string> = {
   'drafts.needsClarification': 'Needs clarification',
 
   'tx.title': 'Transactions',
+  'tx.name': 'Transaction name',
+  'tx.searchName': 'Search by name or description',
   'tx.dateRange': 'Date range',
   'tx.type': 'Type',
   'tx.status': 'Status',

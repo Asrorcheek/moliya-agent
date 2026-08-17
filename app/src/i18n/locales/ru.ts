@@ -103,6 +103,8 @@ const ru: Record<TranslationKey, string> = {
   'drafts.needsClarification': 'Требуется уточнение',
 
   'tx.title': 'Операции',
+  'tx.name': 'Название операции',
+  'tx.searchName': 'Поиск по названию или описанию',
   'tx.dateRange': 'Период',
   'tx.type': 'Тип',
   'tx.status': 'Статус',
