@@ -38,6 +38,15 @@ cd /home/alex/busin/pet-project-2/skills/moliya-agent
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 ```
 
+UI regressiyalarini disposable lokal baza va headless Chrome bilan tekshirish:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/browser_regression_test.py
+```
+
+Bu suite operatsiya qo'shish sahifasi, drawer/dialog yopilishi va sessiya
+tugaganda login sahifasiga xavfsiz qaytishni tekshiradi.
+
 Dependencylar o'rnatilgach, disposable SQLite bazasi va memory writer bilan
 lokal API + Hermes client acceptance testi:
 

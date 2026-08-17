@@ -21,6 +21,7 @@ dependencies = [
 dev = [
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
+  "selenium>=4.35,<5",
 ]
 
 [project.scripts]
