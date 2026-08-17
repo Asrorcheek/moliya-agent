@@ -94,9 +94,7 @@ def run_browser(base_url: str) -> list[str]:
             present(".toolbar-add-user").click()
             present(".admin-drawer")
             if mode == "x":
-                driver.find_element(
-                    By.CSS_SELECTOR, ".admin-drawer-heading .icon-button"
-                ).click()
+                driver.find_element(By.CSS_SELECTOR, ".admin-drawer-heading .icon-button").click()
             elif mode == "escape":
                 escape()
             else:
@@ -105,12 +103,17 @@ def run_browser(base_url: str) -> list[str]:
             gone(".admin-drawer")
         passed.append("user drawer closes with X, Escape, and backdrop")
 
+        driver.get(f"{base_url}/settings")
+        present(".google-integration-card")
+        connect_button = present(".google-connect-panel button")
+        assert not connect_button.is_enabled()
+        passed.append("Google integration shows safe unconfigured state")
+
         driver.get(f"{base_url}/add")
         present(".example-chip").click()
         driver.find_element(By.CSS_SELECTOR, "form button[type=submit]").click()
         wait.until(
-            lambda browser: len(browser.find_elements(By.CSS_SELECTOR, ".add-step-heading"))
-            >= 2
+            lambda browser: len(browser.find_elements(By.CSS_SELECTOR, ".add-step-heading")) >= 2
         )
         driver.get(f"{base_url}/drafts")
         for mode in ("x", "escape", "backdrop"):
@@ -147,9 +150,7 @@ def run_browser(base_url: str) -> list[str]:
         driver.delete_cookie("moliya_session")
         driver.find_element(By.CSS_SELECTOR, 'a[href="/drafts"]').click()
         present('input[autocomplete="current-password"]')
-        assert not driver.find_elements(
-            By.XPATH, "//*[contains(text(), 'Xatolik yuz berdi')]"
-        )
+        assert not driver.find_elements(By.XPATH, "//*[contains(text(), 'Xatolik yuz berdi')]")
         passed.append("expired session redirects to login without generic error")
 
         severe = [

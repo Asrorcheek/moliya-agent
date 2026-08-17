@@ -770,6 +770,119 @@ select option {
   margin-top: var(--space-4);
 }
 
+.google-integration-card {
+  overflow: hidden;
+}
+
+.google-integration-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.google-integration-heading p {
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.google-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+  color: #4285f4;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.google-integration-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+.google-connection-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.google-connect-panel,
+.google-integration-footer,
+.google-create-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.google-connect-panel span {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}
+
+.google-sheet-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.google-sheet-action {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.google-sheet-action strong,
+.google-sheet-action span {
+  display: block;
+}
+
+.google-sheet-action strong {
+  font-size: 13.5px;
+}
+
+.google-sheet-action span {
+  margin-top: 5px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.google-create-row input {
+  flex: 1;
+}
+
+.google-integration-footer {
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.google-integration-footer a,
+.google-integration-footer button {
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.google-integration-footer a {
+  color: var(--color-primary);
+}
+
 .system-summary {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
@@ -1414,6 +1527,10 @@ select option {
   .mobile-cards {
     display: flex;
   }
+  .google-sheet-actions,
+  .google-connection-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 480px) {
@@ -1453,5 +1570,17 @@ select option {
   }
   .password-editor-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .google-integration-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .google-integration-heading > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .google-create-row,
+  .google-connect-panel {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

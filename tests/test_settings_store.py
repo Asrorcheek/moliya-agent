@@ -82,6 +82,28 @@ class SettingsStoreTests(unittest.TestCase):
         self.store.delete_category("actor-1", str(created["id"]))
         self.assertEqual(len(self.store.list_categories("actor-1", "admin")), 7)
 
+    def test_google_integration_credentials_and_selection_persist(self) -> None:
+        saved = self.store.save_google_connection(
+            "actor-1",
+            account_email="owner@example.com",
+            encrypted_refresh_token="encrypted-not-plaintext",
+            scopes="openid https://www.googleapis.com/auth/drive.file",
+        )
+        self.assertEqual(saved["account_email"], "owner@example.com")
+        self.assertEqual(saved["spreadsheet_id"], None)
+        selected = self.store.select_google_spreadsheet(
+            "actor-1",
+            spreadsheet_id="spreadsheet-id-1234567890",
+            spreadsheet_name="Moliya 2026",
+        )
+        self.assertEqual(selected["spreadsheet_name"], "Moliya 2026")
+        self.assertEqual(
+            self.store.get_google_integration("actor-1")["encrypted_refresh_token"],
+            "encrypted-not-plaintext",
+        )
+        self.store.delete_google_integration("actor-1")
+        self.assertIsNone(self.store.get_google_integration("actor-1"))
+
 
 if __name__ == "__main__":
     unittest.main()

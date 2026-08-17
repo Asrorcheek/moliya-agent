@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,6 +20,7 @@ from .auth import (
 from .config import Settings
 from .domain import DomainValidationError, DraftStatus, EntryKind, PaymentMethod
 from .factory import build_service
+from .google_integration import GoogleIntegrationError, GoogleIntegrationManager
 from .parser import ParseError
 from .repository import DraftNotFoundError
 from .service import (
@@ -33,7 +34,7 @@ from .settings_store import (
     SettingsItemNotFoundError,
     SQLiteSettingsStore,
 )
-from .sheets import SheetWriteError
+from .sheets import DynamicSheetGateway, SheetWriteError
 
 
 class DraftRequest(BaseModel):
@@ -71,9 +72,7 @@ class TeamMemberCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     full_name: str = Field(min_length=2, max_length=160)
-    email: str = Field(
-        min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
-    )
+    email: str = Field(min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
     password: str = Field(min_length=10, max_length=256)
     role: Literal["owner", "manager", "accountant"]
 
@@ -82,9 +81,7 @@ class TeamMemberUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     full_name: str = Field(min_length=2, max_length=160)
-    email: str = Field(
-        min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
-    )
+    email: str = Field(min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
     password: str | None = Field(default=None, min_length=10, max_length=256)
     role: Literal["owner", "manager", "accountant"]
     active: bool = True
@@ -98,10 +95,28 @@ class CategoryRequest(BaseModel):
     name_en: str = Field(min_length=1, max_length=80)
 
 
+class GoogleSpreadsheetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    spreadsheet_id: str = Field(min_length=20, max_length=200, pattern=r"^[A-Za-z0-9_-]+$")
+    spreadsheet_name: str = Field(default="Google Sheet", min_length=1, max_length=200)
+
+
+class GoogleSpreadsheetCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str = Field(min_length=2, max_length=200)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
-    service = build_service(resolved_settings)
     settings_store = SQLiteSettingsStore(resolved_settings.db_path)
+    google_integration = GoogleIntegrationManager(resolved_settings, settings_store)
+    sheet_gateway = DynamicSheetGateway(
+        google_integration.writer_for,
+        default_actor_id=resolved_settings.web_actor_id,
+    )
+    service = build_service(resolved_settings, sheet_writer_override=sheet_gateway)
     settings_store.ensure_owner_login(
         resolved_settings.web_actor_id,
         resolved_settings.web_username,
@@ -118,9 +133,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if x_moliya_token and secrets.compare_digest(
             x_moliya_token, resolved_settings.internal_token
         ):
-            return Principal(
-                actor_id="", username="internal", authentication="token", role="owner"
-            )
+            return Principal(actor_id="", username="internal", authentication="token", role="owner")
         if moliya_session:
             try:
                 signed = sessions.verify(moliya_session)
@@ -129,11 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     if signed.user_id
                     else settings_store.find_login_member(signed.username)
                 )
-                if (
-                    member
-                    and member["active"]
-                    and member["actor_id"] == signed.actor_id
-                ):
+                if member and member["active"] and member["actor_id"] == signed.actor_id:
                     return Principal(
                         actor_id=str(member["actor_id"]),
                         username=str(member["email"]),
@@ -188,6 +197,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(SettingsConflictError)
     async def settings_conflict_handler(_request, exc):
         return _error_response(409, str(exc))
+
+    @app.exception_handler(GoogleIntegrationError)
+    async def google_integration_handler(_request, exc):
+        return _error_response(400, str(exc))
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -259,22 +272,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"draft": draft.to_dict(), "preview": format_draft_preview(draft)}
 
-    @app.post(
-        "/v1/drafts/{draft_id}/confirm", dependencies=[Depends(authenticate)]
-    )
+    @app.post("/v1/drafts/{draft_id}/confirm", dependencies=[Depends(authenticate)])
     def confirm(
         draft_id: str,
         request: ActionRequest,
         principal: Principal = Depends(authenticate),
     ) -> dict[str, object]:
-        result = service.confirm(
-            actor_id=actor_for(principal, request.actor_id), draft_id=draft_id
-        )
+        result = service.confirm(actor_id=actor_for(principal, request.actor_id), draft_id=draft_id)
         return result.to_dict()
 
-    @app.post(
-        "/v1/drafts/{draft_id}/reject", dependencies=[Depends(authenticate)]
-    )
+    @app.post("/v1/drafts/{draft_id}/reject", dependencies=[Depends(authenticate)])
     def reject(
         draft_id: str,
         request: ActionRequest,
@@ -292,9 +299,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: Principal = Depends(authenticate),
         actor_id: str | None = None,
     ) -> dict[str, int | str]:
-        return service.monthly_report(
-            actor_id=actor_for(principal, actor_id), month=month
-        )
+        return service.monthly_report(actor_id=actor_for(principal, actor_id), month=month)
 
     @app.get("/v1/drafts", dependencies=[Depends(authenticate)])
     def list_drafts(
@@ -350,9 +355,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: Principal = Depends(authenticate),
         actor_id: str | None = None,
     ) -> dict[str, object]:
-        return service.dashboard_report(
-            actor_id=actor_for(principal, actor_id), month=month
-        )
+        return service.dashboard_report(actor_id=actor_for(principal, actor_id), month=month)
 
     @app.get("/v1/reports/financial-overview", dependencies=[Depends(authenticate)])
     def financial_overview(
@@ -360,9 +363,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         principal: Principal = Depends(authenticate),
         actor_id: str | None = None,
     ) -> dict[str, object]:
-        return service.financial_overview(
-            actor_id=actor_for(principal, actor_id), month=month
-        )
+        return service.financial_overview(actor_id=actor_for(principal, actor_id), month=month)
 
     @app.get("/v1/audit-events", dependencies=[Depends(authenticate)])
     def list_audit_events(
@@ -391,14 +392,75 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "integration": {
                 "sheet_mode": resolved_settings.sheet_mode,
                 "parser_mode": resolved_settings.parser_mode,
-                "connected": resolved_settings.sheet_mode == "google",
-                "spreadsheet_url": (
-                    f"https://docs.google.com/spreadsheets/d/{resolved_settings.spreadsheet_id}/edit"
-                    if resolved_settings.spreadsheet_id
-                    else None
-                ),
+                **google_integration.status(actor_id),
             },
         }
+
+    @app.post("/v1/integrations/google/connect", dependencies=[Depends(authenticate)])
+    def connect_google(
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, str]:
+        require_owner(principal)
+        return {
+            "authorization_url": google_integration.authorization_url(
+                settings_actor(principal), principal.user_id or "owner"
+            )
+        }
+
+    @app.get("/v1/integrations/google/callback")
+    def google_callback(
+        state: str,
+        code: str | None = None,
+        error: str | None = None,
+    ) -> RedirectResponse:
+        if error or not code:
+            return RedirectResponse("/settings?google=denied", status_code=303)
+        try:
+            google_integration.complete_oauth(state=state, code=code)
+        except GoogleIntegrationError:
+            return RedirectResponse("/settings?google=error", status_code=303)
+        return RedirectResponse("/settings?google=connected", status_code=303)
+
+    @app.get(
+        "/v1/integrations/google/picker-token",
+        dependencies=[Depends(authenticate)],
+    )
+    def google_picker_token(
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, str]:
+        require_owner(principal)
+        return google_integration.picker_config(settings_actor(principal))
+
+    @app.post("/v1/integrations/google/select", dependencies=[Depends(authenticate)])
+    def select_google_spreadsheet(
+        request: GoogleSpreadsheetRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        require_owner(principal)
+        google_integration.select_spreadsheet(
+            settings_actor(principal),
+            spreadsheet_id=request.spreadsheet_id,
+            spreadsheet_name=request.spreadsheet_name,
+        )
+        return {"integration": google_integration.status(settings_actor(principal))}
+
+    @app.post("/v1/integrations/google/create", dependencies=[Depends(authenticate)])
+    def create_google_spreadsheet(
+        request: GoogleSpreadsheetCreateRequest,
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        require_owner(principal)
+        google_integration.create_spreadsheet(settings_actor(principal), title=request.title)
+        return {"integration": google_integration.status(settings_actor(principal))}
+
+    @app.delete("/v1/integrations/google", dependencies=[Depends(authenticate)])
+    def disconnect_google(
+        principal: Principal = Depends(authenticate),
+    ) -> dict[str, object]:
+        require_owner(principal)
+        actor_id = settings_actor(principal)
+        google_integration.disconnect(actor_id)
+        return {"integration": google_integration.status(actor_id)}
 
     @app.put("/v1/settings/business", dependencies=[Depends(authenticate)])
     def update_business(
@@ -420,11 +482,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/users", dependencies=[Depends(authenticate)])
     def list_users(principal: Principal = Depends(authenticate)) -> dict[str, object]:
         require_owner(principal)
-        return {
-            "items": settings_store.list_members(
-                settings_actor(principal), principal.username
-            )
-        }
+        return {"items": settings_store.list_members(settings_actor(principal), principal.username)}
 
     @app.post("/v1/users", status_code=201, dependencies=[Depends(authenticate)])
     def create_user(
@@ -457,17 +515,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 full_name=request.full_name.strip(),
                 role=request.role,
                 email=request.email,
-                password_hash=(
-                    hash_password(request.password) if request.password else None
-                ),
+                password_hash=(hash_password(request.password) if request.password else None),
                 active=request.active,
             )
         }
 
     @app.delete("/v1/users/{user_id}", dependencies=[Depends(authenticate)])
-    def delete_user(
-        user_id: str, principal: Principal = Depends(authenticate)
-    ) -> dict[str, bool]:
+    def delete_user(user_id: str, principal: Principal = Depends(authenticate)) -> dict[str, bool]:
         require_owner(principal)
         settings_store.delete_member(settings_actor(principal), user_id)
         return {"deleted": True}
@@ -476,9 +530,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def list_categories(principal: Principal = Depends(authenticate)) -> dict[str, object]:
         require_owner(principal)
         return {
-            "items": settings_store.list_categories(
-                settings_actor(principal), principal.username
-            )
+            "items": settings_store.list_categories(settings_actor(principal), principal.username)
         }
 
     @app.post("/v1/categories", status_code=201, dependencies=[Depends(authenticate)])

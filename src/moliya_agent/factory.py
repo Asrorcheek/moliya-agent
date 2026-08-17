@@ -4,10 +4,14 @@ from .config import Settings
 from .parser import HermesParser, OpenAIParser, RuleBasedParser
 from .repository import SQLiteDraftRepository
 from .service import MoliyaService
-from .sheets import GoogleSheetsWriter, InMemorySheetWriter
+from .sheets import GoogleSheetsWriter, InMemorySheetWriter, SheetWriter
 
 
-def build_service(settings: Settings) -> MoliyaService:
+def build_service(
+    settings: Settings,
+    *,
+    sheet_writer_override: SheetWriter | None = None,
+) -> MoliyaService:
     repository = SQLiteDraftRepository(settings.db_path)
     if settings.parser_mode == "openai":
         parser = OpenAIParser(
@@ -24,7 +28,9 @@ def build_service(settings: Settings) -> MoliyaService:
     else:
         parser = RuleBasedParser()
 
-    if settings.sheet_mode == "google":
+    if sheet_writer_override is not None:
+        sheet_writer = sheet_writer_override
+    elif settings.sheet_mode == "google":
         sheet_writer = GoogleSheetsWriter(
             spreadsheet_id=settings.spreadsheet_id or "",
             service_account_file=settings.service_account_file,
@@ -38,5 +44,5 @@ def build_service(settings: Settings) -> MoliyaService:
         parser=parser,
         sheet_writer=sheet_writer,
         allowed_actors=settings.allowed_actors,
-        report_reader=sheet_writer if isinstance(sheet_writer, GoogleSheetsWriter) else None,
+        report_reader=(sheet_writer if hasattr(sheet_writer, "read_financial_overview") else None),
     )

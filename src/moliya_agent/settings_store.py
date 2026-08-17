@@ -85,6 +85,16 @@ class SQLiteSettingsStore:
                     created_at TEXT NOT NULL,
                     PRIMARY KEY(actor_id, id)
                 );
+                CREATE TABLE IF NOT EXISTS google_integrations (
+                    actor_id TEXT PRIMARY KEY,
+                    account_email TEXT NOT NULL,
+                    encrypted_refresh_token TEXT NOT NULL,
+                    scopes TEXT NOT NULL,
+                    spreadsheet_id TEXT,
+                    spreadsheet_name TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             columns = {
@@ -103,6 +113,76 @@ class SQLiteSettingsStore:
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_email "
                 "ON team_members(lower(email)) WHERE email IS NOT NULL AND email != ''"
             )
+
+    def get_google_integration(self, actor_id: str) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM google_integrations WHERE actor_id = ?", (actor_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def save_google_connection(
+        self,
+        actor_id: str,
+        *,
+        account_email: str,
+        encrypted_refresh_token: str,
+        scopes: str,
+    ) -> dict[str, object]:
+        now = datetime.now(UTC).isoformat()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO google_integrations (
+                    actor_id, account_email, encrypted_refresh_token, scopes,
+                    spreadsheet_id, spreadsheet_name, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
+                ON CONFLICT(actor_id) DO UPDATE SET
+                    account_email = excluded.account_email,
+                    encrypted_refresh_token = excluded.encrypted_refresh_token,
+                    scopes = excluded.scopes,
+                    spreadsheet_id = NULL,
+                    spreadsheet_name = NULL,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    actor_id,
+                    account_email,
+                    encrypted_refresh_token,
+                    scopes,
+                    now,
+                    now,
+                ),
+            )
+        integration = self.get_google_integration(actor_id)
+        if integration is None:
+            raise SettingsConflictError("Google integratsiyasi saqlanmadi")
+        return integration
+
+    def select_google_spreadsheet(
+        self, actor_id: str, *, spreadsheet_id: str, spreadsheet_name: str
+    ) -> dict[str, object]:
+        with self._lock, self._connect() as connection:
+            result = connection.execute(
+                "UPDATE google_integrations SET spreadsheet_id = ?, "
+                "spreadsheet_name = ?, updated_at = ? WHERE actor_id = ?",
+                (
+                    spreadsheet_id,
+                    spreadsheet_name,
+                    datetime.now(UTC).isoformat(),
+                    actor_id,
+                ),
+            )
+            if result.rowcount == 0:
+                raise SettingsConflictError("Avval Google accountni ulang")
+        integration = self.get_google_integration(actor_id)
+        if integration is None:
+            raise SettingsConflictError("Google integratsiyasi topilmadi")
+        return integration
+
+    def delete_google_integration(self, actor_id: str) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM google_integrations WHERE actor_id = ?", (actor_id,))
 
     def _ensure_defaults(self, actor_id: str, owner_name: str) -> None:
         now = datetime.now(UTC).isoformat()
@@ -183,8 +263,7 @@ class SQLiteSettingsStore:
             next_email = owner["email"] or email.strip().lower()
             next_hash = owner["password_hash"] or hash_password(password)
             connection.execute(
-                "UPDATE team_members SET email = ?, password_hash = ?, active = 1 "
-                "WHERE id = ?",
+                "UPDATE team_members SET email = ?, password_hash = ?, active = 1 WHERE id = ?",
                 (next_email, next_hash, owner["id"]),
             )
 
@@ -270,10 +349,13 @@ class SQLiteSettingsStore:
         self._ensure_defaults(actor_id, owner_name)
         member_id = str(uuid.uuid4())
         with self._lock, self._connect() as connection:
-            if email and connection.execute(
-                "SELECT 1 FROM team_members WHERE lower(email) = lower(?)",
-                (email.strip(),),
-            ).fetchone():
+            if (
+                email
+                and connection.execute(
+                    "SELECT 1 FROM team_members WHERE lower(email) = lower(?)",
+                    (email.strip(),),
+                ).fetchone()
+            ):
                 raise SettingsConflictError("Bu email allaqachon ishlatilgan")
             connection.execute(
                 """
@@ -325,10 +407,13 @@ class SQLiteSettingsStore:
                 if other_active_owners == 0:
                     raise SettingsConflictError("Kamida bitta faol owner qolishi kerak")
             next_email = email.strip().lower() if email is not None else current["email"]
-            if next_email and connection.execute(
-                "SELECT 1 FROM team_members WHERE lower(email) = lower(?) AND id != ?",
-                (next_email, member_id),
-            ).fetchone():
+            if (
+                next_email
+                and connection.execute(
+                    "SELECT 1 FROM team_members WHERE lower(email) = lower(?) AND id != ?",
+                    (next_email, member_id),
+                ).fetchone()
+            ):
                 raise SettingsConflictError("Bu email allaqachon ishlatilgan")
             next_hash = password_hash or current["password_hash"]
             next_active = int(active) if active is not None else current["active"]

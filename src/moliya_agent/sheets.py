@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from .domain import DraftRecord, FinancialEntry
 
@@ -25,16 +26,16 @@ class SheetWriter(Protocol):
 
 
 class FinancialReportReader(Protocol):
-    def read_financial_overview(self, month: str) -> dict[str, object]: ...
+    def read_financial_overview(
+        self, month: str, *, actor_id: str | None = None
+    ) -> dict[str, object]: ...
 
 
 class InMemorySheetWriter:
     def __init__(self) -> None:
         self.rows: dict[str, dict[str, object]] = {}
 
-    def write_draft(
-        self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime
-    ) -> int:
+    def write_draft(self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime) -> int:
         written = 0
         for index, entry in enumerate(draft.parsed.entries):
             entry_id = f"{draft.id}:{index}"
@@ -87,24 +88,28 @@ class GoogleSheetsWriter:
         spreadsheet_id: str,
         service_account_file: Path | None = None,
         service_account_json: str | None = None,
+        credentials: Any | None = None,
     ) -> None:
         try:
-            from google.oauth2.service_account import Credentials
             from googleapiclient.discovery import build
         except ImportError as exc:
-            raise SheetWriteError(
-                "Google Sheets dependencylari o'rnatilmagan"
-            ) from exc
+            raise SheetWriteError("Google Sheets dependencylari o'rnatilmagan") from exc
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        if service_account_json:
+        if credentials is not None:
+            resolved_credentials = credentials
+        elif service_account_json:
+            from google.oauth2.service_account import Credentials
+
             try:
                 info = json.loads(service_account_json)
             except json.JSONDecodeError as exc:
                 raise SheetWriteError("GOOGLE_SERVICE_ACCOUNT_JSON noto'g'ri") from exc
-            credentials = Credentials.from_service_account_info(info, scopes=scopes)
+            resolved_credentials = Credentials.from_service_account_info(info, scopes=scopes)
         elif service_account_file:
-            credentials = Credentials.from_service_account_file(
+            from google.oauth2.service_account import Credentials
+
+            resolved_credentials = Credentials.from_service_account_file(
                 str(service_account_file), scopes=scopes
             )
         else:
@@ -112,7 +117,7 @@ class GoogleSheetsWriter:
 
         self._spreadsheet_id = spreadsheet_id
         self._service = build(
-            "sheets", "v4", credentials=credentials, cache_discovery=False
+            "sheets", "v4", credentials=resolved_credentials, cache_discovery=False
         )
         self._report_cache: dict[str, tuple[float, dict[str, object]]] = {}
         self._cache_lock = threading.RLock()
@@ -127,9 +132,7 @@ class GoogleSheetsWriter:
             .get(spreadsheetId=self._spreadsheet_id, fields="sheets.properties.title")
             .execute()
         )
-        titles = {
-            sheet["properties"]["title"] for sheet in metadata.get("sheets", [])
-        }
+        titles = {sheet["properties"]["title"] for sheet in metadata.get("sheets", [])}
         if title in titles:
             return
         self._service.spreadsheets().batchUpdate(
@@ -176,9 +179,7 @@ class GoogleSheetsWriter:
             "",
         ]
 
-    def write_draft(
-        self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime
-    ) -> int:
+    def write_draft(self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime) -> int:
         title = _LEDGER_TAB
         try:
             self._ensure_tab(title)
@@ -246,7 +247,9 @@ class GoogleSheetsWriter:
             result.append(f"{absolute // 12:04d}-{absolute % 12 + 1:02d}")
         return result
 
-    def read_financial_overview(self, month: str) -> dict[str, object]:
+    def read_financial_overview(
+        self, month: str, *, actor_id: str | None = None
+    ) -> dict[str, object]:
         with self._cache_lock:
             cached = self._report_cache.get(month)
             if cached and time.monotonic() - cached[0] < 60:
@@ -310,15 +313,9 @@ class GoogleSheetsWriter:
                     "inventory_uzs": balance_values.get("Tovar qoldig'i", 0),
                     "total_assets_uzs": balance_values.get("Jami aktivlar", 0),
                     "payables_uzs": balance_values.get("Kreditor", 0),
-                    "total_liabilities_uzs": balance_values.get(
-                        "Jami majburiyatlar", 0
-                    ),
-                    "equity_uzs": balance_values.get(
-                        "Boshlang'ich kapital + jamlangan foyda", 0
-                    ),
-                    "liabilities_and_equity_uzs": balance_values.get(
-                        "Majburiyatlar + kapital", 0
-                    ),
+                    "total_liabilities_uzs": balance_values.get("Jami majburiyatlar", 0),
+                    "equity_uzs": balance_values.get("Boshlang'ich kapital + jamlangan foyda", 0),
+                    "liabilities_and_equity_uzs": balance_values.get("Majburiyatlar + kapital", 0),
                     "difference_uzs": balance_values.get("Balans tekshiruvi", 0),
                 },
             }
@@ -329,3 +326,29 @@ class GoogleSheetsWriter:
         with self._cache_lock:
             self._report_cache[month] = (time.monotonic(), result)
         return result
+
+
+class DynamicSheetGateway:
+    """Resolve the active writer per actor without restarting the service."""
+
+    def __init__(
+        self,
+        resolver: Callable[[str], SheetWriter],
+        *,
+        default_actor_id: str,
+    ) -> None:
+        self._resolver = resolver
+        self._default_actor_id = default_actor_id
+
+    def write_draft(self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime) -> int:
+        return self._resolver(draft.actor_id).write_draft(
+            draft, confirmed_by=confirmed_by, confirmed_at=confirmed_at
+        )
+
+    def read_financial_overview(
+        self, month: str, *, actor_id: str | None = None
+    ) -> dict[str, object]:
+        writer = self._resolver(actor_id or self._default_actor_id)
+        if not isinstance(writer, GoogleSheetsWriter):
+            raise SheetReadError("Google Sheets report reader ulanmagan")
+        return writer.read_financial_overview(month, actor_id=actor_id)

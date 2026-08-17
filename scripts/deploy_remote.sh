@@ -53,6 +53,18 @@ PY
 
 sudo -u busin tar -xzf "$release" -C "$stage_dir"
 
+# Install declared runtime dependencies before importing the staged application.
+# This keeps deployments working when pyproject.toml adds a new dependency.
+mapfile -t project_dependencies < <(
+  "$app_dir/.venv/bin/python" -c \
+    'import sys, tomllib; print("\n".join(tomllib.load(open(sys.argv[1], "rb"))["project"]["dependencies"]))' \
+    "$stage_dir/backend/pyproject.toml"
+)
+if [[ ${#project_dependencies[@]} -gt 0 ]]; then
+  sudo -u busin "$app_dir/.venv/bin/python" -m pip install \
+    "${project_dependencies[@]}" >/dev/null
+fi
+
 sudo -u busin env STAGE_SRC="$stage_dir/backend/src" ENV_FILE="$env_file" \
   "$app_dir/.venv/bin/python" - <<'PY'
 import os

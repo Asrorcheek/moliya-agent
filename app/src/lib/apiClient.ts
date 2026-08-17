@@ -3,6 +3,8 @@
 // exposed to frontend code.
 
 import type { AppSettings, AppUser, AuditEvent, BusinessProfile, Category, DashboardSummary, DraftRecord, DraftStatus, EntryKind, FinancialOverview, MonthlyReport, PaymentMethod, TransactionEntry, UserRole } from './types'
+import type { IntegrationStatus } from './types'
+import type { PickerConfig } from './googlePicker'
 
 const BASE_URL = import.meta.env.VITE_MOLIYA_API_BASE_URL ?? ''
 export const UNAUTHORIZED_EVENT = 'moliya:unauthorized'
@@ -220,6 +222,27 @@ export const moliyaApi = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+
+  connectGoogle: () =>
+    request<{ authorization_url: string }>('/v1/integrations/google/connect', { method: 'POST' }),
+
+  googlePickerConfig: () =>
+    request<PickerConfig>('/v1/integrations/google/picker-token'),
+
+  selectGoogleSpreadsheet: (spreadsheetId: string, spreadsheetName: string) =>
+    request<{ integration: IntegrationStatus }>('/v1/integrations/google/select', {
+      method: 'POST',
+      body: JSON.stringify({ spreadsheet_id: spreadsheetId, spreadsheet_name: spreadsheetName }),
+    }),
+
+  createGoogleSpreadsheet: (title: string) =>
+    request<{ integration: IntegrationStatus }>('/v1/integrations/google/create', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+
+  disconnectGoogle: () =>
+    request<{ integration: IntegrationStatus }>('/v1/integrations/google', { method: 'DELETE' }),
 
   createUser: (input: { full_name: string; email: string; password: string; role: UserRole }) =>
     request<{ user: AppUser }>('/v1/users', {

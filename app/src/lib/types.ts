@@ -119,6 +119,13 @@ export interface IntegrationStatus {
   sheet_mode: string
   parser_mode: string
   connected: boolean
+  provider: 'oauth' | 'service_account' | 'memory'
+  oauth_configured: boolean
+  picker_configured: boolean
+  google_account_connected: boolean
+  account_email: string | null
+  spreadsheet_id: string | null
+  spreadsheet_name: string | null
   spreadsheet_url: string | null
 }
 

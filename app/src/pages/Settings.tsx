@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { ErrorState, LoadingState } from '@/components/ui/States'
 import { ApiError, moliyaApi } from '@/lib/apiClient'
+import { pickGoogleSpreadsheet } from '@/lib/googlePicker'
 import type { AppSettings, Category } from '@/lib/types'
 
 type DeleteTarget = { kind: 'category'; item: Category }
@@ -33,6 +34,8 @@ export function SettingsPage() {
   const [manageCategories, setManageCategories] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newSheetTitle, setNewSheetTitle] = useState(`Moliya Agent ${new Date().getFullYear()}`)
+  const [disconnectGoogle, setDisconnectGoogle] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -42,7 +45,17 @@ export function SettingsPage() {
     finally { setLoading(false) }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const googleResult = new URLSearchParams(window.location.search).get('google')
+    if (googleResult) {
+      setNotice({
+        tone: googleResult === 'connected' ? 'success' : 'danger',
+        text: googleResult === 'connected' ? t('settings.googleConnected') : t('settings.googleConnectFailed'),
+      })
+      window.history.replaceState({}, '', '/settings')
+    }
+    void load()
+  }, [load, t])
 
   const success = () => setNotice({ tone: 'success', text: t('settings.saved') })
   const failure = (error: unknown) => setNotice({ tone: 'danger', text: errorMessage(error) })
@@ -98,6 +111,47 @@ export function SettingsPage() {
   }
   const categoryLabel = (category: Category) => locale === 'ru' ? category.name_ru : locale === 'en' ? category.name_en : category.name_uz
 
+  const connectGoogleAccount = async () => {
+    setBusy('google-connect'); setNotice(null)
+    try {
+      const response = await moliyaApi.connectGoogle()
+      window.location.assign(response.authorization_url)
+    } catch (error) { failure(error); setBusy(null) }
+  }
+
+  const chooseGoogleSheet = async () => {
+    if (!settings) return
+    setBusy('google-picker'); setNotice(null)
+    try {
+      const config = await moliyaApi.googlePickerConfig()
+      const picked = await pickGoogleSpreadsheet(config)
+      if (!picked) return
+      const response = await moliyaApi.selectGoogleSpreadsheet(picked.id, picked.name)
+      setSettings({ ...settings, integration: response.integration }); success()
+    } catch (error) { failure(error) }
+    finally { setBusy(null) }
+  }
+
+  const createGoogleSheet = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!settings || !newSheetTitle.trim()) return
+    setBusy('google-create'); setNotice(null)
+    try {
+      const response = await moliyaApi.createGoogleSpreadsheet(newSheetTitle.trim())
+      setSettings({ ...settings, integration: response.integration }); success()
+    } catch (error) { failure(error) }
+    finally { setBusy(null) }
+  }
+
+  const confirmGoogleDisconnect = async () => {
+    if (!settings) return
+    try {
+      const response = await moliyaApi.disconnectGoogle()
+      setSettings({ ...settings, integration: response.integration })
+      setDisconnectGoogle(false); success()
+    } catch (error) { failure(error); throw error }
+  }
+
   if (loading) return <AppShell title={t('settings.title')}><LoadingState /></AppShell>
   if (loadError || !settings) return <AppShell title={t('settings.title')}><ErrorState description={loadError ?? undefined} onRetry={load} /></AppShell>
 
@@ -136,13 +190,58 @@ export function SettingsPage() {
           <Card>
             <h3>{t('settings.system')}</h3>
             <div className="system-summary">
-              <SummaryItem label="Google Sheets" value={settings.integration.connected ? t('settings.sheetsConnected') : t('settings.sheetsMemory')} success={settings.integration.connected} />
               <SummaryItem label={t('settings.parserMode')} value={settings.integration.parser_mode} />
               <SummaryItem label={t('settings.currency')} value="UZS" />
-              {settings.integration.spreadsheet_url && <a href={settings.integration.spreadsheet_url} target="_blank" rel="noreferrer" style={{ fontSize: 13.5 }}>{t('settings.openSheet')}</a>}
+              <SummaryItem label="Google Sheets" value={settings.integration.connected ? t('settings.sheetsConnected') : t('settings.sheetsMemory')} success={settings.integration.connected} />
             </div>
           </Card>
         </div>
+
+        <Card className="google-integration-card">
+          <div className="google-integration-heading">
+            <div className="google-mark" aria-hidden="true">G</div>
+            <div>
+              <h3>{t('settings.googleDrive')}</h3>
+              <p>{t('settings.googleDriveHint')}</p>
+            </div>
+            <Badge tone={settings.integration.google_account_connected ? 'success' : 'neutral'}>
+              {settings.integration.google_account_connected ? t('settings.googleAccountConnected') : t('settings.googleAccountNotConnected')}
+            </Badge>
+          </div>
+
+          <div className="google-integration-body">
+            <div className="google-connection-summary">
+              <SummaryItem label={t('settings.googleAccount')} value={settings.integration.account_email || '—'} success={settings.integration.google_account_connected} />
+              <SummaryItem label={t('settings.activeSheet')} value={settings.integration.spreadsheet_name || settings.integration.spreadsheet_id || '—'} success={settings.integration.connected} />
+              <SummaryItem label={t('settings.connectionType')} value={settings.integration.provider === 'oauth' ? 'Google OAuth' : settings.integration.provider === 'service_account' ? 'Service account' : 'Memory'} />
+            </div>
+
+            {!settings.integration.google_account_connected ? (
+              <div className="google-connect-panel">
+                <Button type="button" variant="primary" onClick={() => void connectGoogleAccount()} disabled={!settings.integration.oauth_configured || busy === 'google-connect'}>
+                  {t('settings.connectGoogle')}
+                </Button>
+                {!settings.integration.oauth_configured && <span>{t('settings.googleOAuthRequired')}</span>}
+              </div>
+            ) : (
+              <div className="google-sheet-actions">
+                <div className="google-sheet-action">
+                  <div><strong>{t('settings.chooseExistingSheet')}</strong><span>{t('settings.chooseExistingSheetHint')}</span></div>
+                  <Button type="button" variant="secondary" onClick={() => void chooseGoogleSheet()} disabled={!settings.integration.picker_configured || busy !== null}>{t('settings.chooseFromDrive')}</Button>
+                </div>
+                <form className="google-sheet-action" onSubmit={createGoogleSheet}>
+                  <div><strong>{t('settings.createNewSheet')}</strong><span>{t('settings.createNewSheetHint')}</span></div>
+                  <div className="google-create-row"><input required minLength={2} value={newSheetTitle} onChange={(event) => setNewSheetTitle(event.target.value)} style={fieldStyle} /><Button type="submit" variant="primary" disabled={!settings.integration.oauth_configured || busy !== null}>{t('settings.create')}</Button></div>
+                </form>
+              </div>
+            )}
+
+            <div className="google-integration-footer">
+              {settings.integration.spreadsheet_url && <a href={settings.integration.spreadsheet_url} target="_blank" rel="noreferrer">{t('settings.openSheet')} ↗</a>}
+              {settings.integration.google_account_connected && <button type="button" className="danger-text" onClick={() => setDisconnectGoogle(true)}>{t('settings.disconnectGoogle')}</button>}
+            </div>
+          </div>
+        </Card>
 
         <Card>
           <div className="card-heading-row">
@@ -167,6 +266,7 @@ export function SettingsPage() {
       </div>
 
       <ConfirmDialog open={deleteTarget !== null} title={t('settings.deleteTitle')} body={t('settings.deleteBody')} confirmLabel={t('settings.delete')} tone="danger" requireAcknowledge={false} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+      <ConfirmDialog open={disconnectGoogle} title={t('settings.disconnectGoogle')} body={t('settings.disconnectGoogleBody')} confirmLabel={t('settings.disconnect')} tone="danger" requireAcknowledge={false} onCancel={() => setDisconnectGoogle(false)} onConfirm={confirmGoogleDisconnect} />
     </AppShell>
   )
 }

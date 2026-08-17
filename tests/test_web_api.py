@@ -37,9 +37,7 @@ class SessionManagerTests(unittest.TestCase):
 class WebRouteTests(unittest.TestCase):
     def test_required_web_routes_are_registered(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            settings = replace(
-                Settings.from_env(), db_path=Path(directory) / "api.db"
-            )
+            settings = replace(Settings.from_env(), db_path=Path(directory) / "api.db")
             paths = {route.path for route in create_app(settings).routes}
         self.assertTrue(
             {
@@ -56,6 +54,12 @@ class WebRouteTests(unittest.TestCase):
                 "/v1/users/{user_id}",
                 "/v1/categories",
                 "/v1/categories/{category_id}",
+                "/v1/integrations/google/connect",
+                "/v1/integrations/google/callback",
+                "/v1/integrations/google/picker-token",
+                "/v1/integrations/google/select",
+                "/v1/integrations/google/create",
+                "/v1/integrations/google",
             }.issubset(paths)
         )
 
@@ -124,14 +128,13 @@ class WebRouteTests(unittest.TestCase):
                 self.assertEqual(manager_login.status_code, 200)
                 self.assertEqual(manager_login.json()["role"], "manager")
                 self.assertEqual(
-                    client.get(
-                        "/v1/reports/dashboard", params={"month": "2026-08"}
-                    ).status_code,
+                    client.get("/v1/reports/dashboard", params={"month": "2026-08"}).status_code,
                     200,
                 )
                 self.assertEqual(client.get("/v1/users").status_code, 403)
                 self.assertEqual(client.get("/v1/settings").status_code, 403)
                 self.assertEqual(client.get("/v1/audit-events").status_code, 403)
+                self.assertEqual(client.post("/v1/integrations/google/connect").status_code, 403)
 
                 self.assertEqual(client.delete("/v1/session").status_code, 200)
                 owner_login = client.post(
@@ -139,6 +142,11 @@ class WebRouteTests(unittest.TestCase):
                     json={"username": "owner", "password": "safe-test-password"},
                 )
                 self.assertEqual(owner_login.status_code, 200)
+                integration = client.get("/v1/settings").json()["integration"]
+                self.assertFalse(integration["oauth_configured"])
+                self.assertEqual(integration["provider"], "memory")
+                self.assertNotIn("token", " ".join(integration.keys()).lower())
+                self.assertEqual(client.post("/v1/integrations/google/connect").status_code, 400)
                 changed_user = client.put(
                     f"/v1/users/{user_id}",
                     json={
@@ -170,9 +178,50 @@ class WebRouteTests(unittest.TestCase):
                     },
                 )
                 self.assertEqual(changed_category.json()["category"]["name_uz"], "Internet")
+                self.assertEqual(client.delete(f"/v1/categories/{category_id}").status_code, 200)
+
+    def test_google_oauth_connect_returns_signed_authorization_url(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = replace(
+                Settings.from_env(),
+                db_path=Path(directory) / "oauth.db",
+                web_username="owner",
+                web_password="safe-test-password",
+                web_actor_id="web-owner",
+                allowed_actors=frozenset({"web-owner"}),
+                session_cookie_secure=False,
+                google_oauth_client_id="client-id.apps.googleusercontent.com",
+                google_oauth_client_secret="test-client-secret",
+                google_oauth_redirect_uri=("https://example.com/v1/integrations/google/callback"),
+                google_picker_api_key="test-picker-key",
+            )
+            with TestClient(create_app(settings)) as client:
                 self.assertEqual(
-                    client.delete(f"/v1/categories/{category_id}").status_code, 200
+                    client.post(
+                        "/v1/session",
+                        json={
+                            "username": "owner",
+                            "password": "safe-test-password",
+                        },
+                    ).status_code,
+                    200,
                 )
+                response = client.post("/v1/integrations/google/connect")
+                self.assertEqual(response.status_code, 200)
+                authorization_url = response.json()["authorization_url"]
+                self.assertIn("accounts.google.com", authorization_url)
+                self.assertIn("state=", authorization_url)
+                integration = client.get("/v1/settings").json()["integration"]
+                self.assertTrue(integration["oauth_configured"])
+                self.assertTrue(integration["picker_configured"])
+
+                callback = client.get(
+                    "/v1/integrations/google/callback",
+                    params={"state": "tampered", "code": "unused"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(callback.status_code, 303)
+                self.assertEqual(callback.headers["location"], "/settings?google=error")
 
 
 if __name__ == "__main__":

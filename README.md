@@ -242,7 +242,7 @@ buyrug'ini chaqiradi.
 
 ## Google Sheets
 
-MVP bitta `GOOGLE_SPREADSHEET_ID` bilan ishlaydi va yangi workbook yaratmaydi.
+Legacy service-account rejimi bitta `GOOGLE_SPREADSHEET_ID` bilan ishlaydi.
 Tasdiqlangan barcha operatsiyalar shu workbook ichidagi bitta normalized ledger
 tabiga yoziladi:
 
@@ -258,6 +258,27 @@ Tan narx | Kategoriya | Kontragent | Izoh | Source ID | Tasdiqlagan |
 Tasdiqlangan vaqt | Valyuta | Summa (valyutada) | Kurs | Holat |
 Bekor qilingan Entry ID
 ```
+
+### Owner UI orqali Google Drive ulash
+
+Legacy service-account Sheet fallback sifatida qoladi. Owner `Settings → Google
+Drive va Sheets` orqali shaxsiy Google accountni ulashi, Google Picker'dan
+mavjud Sheet tanlashi yoki yangi workbook yaratishi mumkin. OAuth yoqish uchun
+Google Cloud'da Drive API, Sheets API va Google Picker API'ni yoqing, `Web
+application` OAuth Client yarating va quyidagilarni server secretlariga qo'ying:
+
+```dotenv
+GOOGLE_OAUTH_CLIENT_ID=<oauth-client-id>
+GOOGLE_OAUTH_CLIENT_SECRET=<oauth-client-secret>
+GOOGLE_OAUTH_REDIRECT_URI=https://moliya.34-29-145-102.sslip.io/v1/integrations/google/callback
+GOOGLE_PICKER_API_KEY=<restricted-browser-api-key>
+```
+
+Authorized redirect URI qiymati `GOOGLE_OAUTH_REDIRECT_URI` bilan aynan bir xil
+bo'lishi kerak. Ilova `drive.file` scope so'raydi: faqat ilova yaratgan yoki
+foydalanuvchi Picker orqali tanlagan fayllarga kiradi. Refresh token SQLite'da
+ochiq matn emas, server session secretidan hosil qilingan Fernet kaliti bilan
+shifrlangan holda saqlanadi. Client secret va API key'ni repoga qo'ymang.
 
 Ishchi Excel nusxasi: `/home/alex/Downloads/Apteka_Moliya_v2.xlsx`.
 Asl `shablon .xlsx` o'zgartirilmagan. Ishchi nusxaga `Sozlamalar` va

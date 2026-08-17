@@ -111,15 +111,12 @@ class MoliyaService:
                     confirmed_by=actor_id,
                     confirmed_at=draft.confirmed_at or datetime.now(UTC),
                 )
-                return ConfirmationResult(
-                    draft=draft, written_rows=written, already_confirmed=True
-                )
+                return ConfirmationResult(draft=draft, written_rows=written, already_confirmed=True)
             if draft.status == DraftStatus.REJECTED:
                 raise InvalidTransitionError("Rad etilgan draftni tasdiqlab bo'lmaydi")
             if draft.parsed.needs_clarification:
                 raise ClarificationRequiredError(
-                    draft.parsed.clarification_question
-                    or "Ma'lumotni aniqlashtirish kerak"
+                    draft.parsed.clarification_question or "Ma'lumotni aniqlashtirish kerak"
                 )
 
             now = datetime.now(UTC)
@@ -137,9 +134,7 @@ class MoliyaService:
                     now=now,
                 )
                 raise
-            confirmed = self._repository.set_status(
-                draft.id, DraftStatus.CONFIRMED, now=now
-            )
+            confirmed = self._repository.set_status(draft.id, DraftStatus.CONFIRMED, now=now)
             self._repository.add_audit_event(
                 actor_id=actor_id,
                 event_type="draft.confirmed",
@@ -158,9 +153,7 @@ class MoliyaService:
         if draft.actor_id != actor_id:
             raise AuthorizationError("Boshqa actor draftini rad etib bo'lmaydi")
         if draft.status == DraftStatus.CONFIRMED:
-            raise InvalidTransitionError(
-                "Tasdiqlangan yozuvni rad etib bo'lmaydi; reversal kerak"
-            )
+            raise InvalidTransitionError("Tasdiqlangan yozuvni rad etib bo'lmaydi; reversal kerak")
         if draft.status == DraftStatus.REJECTED:
             return draft
         rejected = self._repository.set_status(draft.id, DraftStatus.REJECTED)
@@ -289,9 +282,7 @@ class MoliyaService:
                 for key in payment_totals:
                     payment_totals[key] += int(breakdown.get(key, 0))
             date_label = str(transaction["transaction_date"])[5:]
-            day = daily_totals.setdefault(
-                date_label, {"income_uzs": 0, "expense_uzs": 0}
-            )
+            day = daily_totals.setdefault(date_label, {"income_uzs": 0, "expense_uzs": 0})
             kind = transaction["kind"]
             amount = int(transaction["amount_uzs"])
             if kind == EntryKind.INCOME.value:
@@ -337,19 +328,15 @@ class MoliyaService:
             raise ValueError("month YYYY-MM formatida bo'lishi kerak") from exc
         if self._report_reader is not None:
             try:
-                return self._report_reader.read_financial_overview(month)
+                return self._report_reader.read_financial_overview(month, actor_id=actor_id)
             except SheetReadError:
                 pass
         months = self._months_ending_at(month)
         transactions, _ = self.list_transactions(actor_id=actor_id, limit=10_000)
-        transactions = [
-            item for item in transactions if str(item["transaction_date"])[:7] <= month
-        ]
+        transactions = [item for item in transactions if str(item["transaction_date"])[:7] <= month]
         trend = []
         running_cash = 0
-        earlier = [
-            item for item in transactions if str(item["transaction_date"])[:7] < months[0]
-        ]
+        earlier = [item for item in transactions if str(item["transaction_date"])[:7] < months[0]]
         for item in earlier:
             running_cash += self._cash_effect(item)
         for label in months:
@@ -396,10 +383,15 @@ class MoliyaService:
     @classmethod
     def _cash_effect(cls, item: dict[str, object]) -> int:
         amount = cls._paid_amount(item)
-        return amount if item["kind"] in {
-            EntryKind.INCOME.value,
-            EntryKind.CUSTOMER_PAYMENT.value,
-        } else -amount
+        return (
+            amount
+            if item["kind"]
+            in {
+                EntryKind.INCOME.value,
+                EntryKind.CUSTOMER_PAYMENT.value,
+            }
+            else -amount
+        )
 
     @classmethod
     def _ledger_balance(cls, transactions: list[dict[str, object]]) -> dict[str, int]:
@@ -407,14 +399,18 @@ class MoliyaService:
         for item in transactions:
             breakdown = item.get("payment_breakdown")
             if isinstance(breakdown, dict):
-                sign = 1 if item["kind"] in {
-                    EntryKind.INCOME.value,
-                    EntryKind.CUSTOMER_PAYMENT.value,
-                } else -1
+                sign = (
+                    1
+                    if item["kind"]
+                    in {
+                        EntryKind.INCOME.value,
+                        EntryKind.CUSTOMER_PAYMENT.value,
+                    }
+                    else -1
+                )
                 cash += sign * int(breakdown.get("cash_uzs", 0))
                 bank += sign * (
-                    int(breakdown.get("card_uzs", 0))
-                    + int(breakdown.get("transfer_uzs", 0))
+                    int(breakdown.get("card_uzs", 0)) + int(breakdown.get("transfer_uzs", 0))
                 )
             amount = int(item["amount_uzs"])
             kind = item["kind"]
@@ -457,9 +453,7 @@ class MoliyaService:
         self, *, actor_id: str, limit: int, offset: int
     ) -> tuple[list[dict[str, object]], int]:
         self._authorize(actor_id)
-        return self._repository.list_audit_events(
-            actor_id=actor_id, limit=limit, offset=offset
-        )
+        return self._repository.list_audit_events(actor_id=actor_id, limit=limit, offset=offset)
 
 
 def format_draft_preview(draft: DraftRecord) -> str:
@@ -491,9 +485,7 @@ def format_draft_preview(draft: DraftRecord) -> str:
     if draft.parsed.new_customer_count:
         lines.append(f"Yangi mijozlar: {draft.parsed.new_customer_count}")
     if draft.parsed.needs_clarification:
-        lines.append(
-            f"Aniqlashtirish kerak: {draft.parsed.clarification_question}"
-        )
+        lines.append(f"Aniqlashtirish kerak: {draft.parsed.clarification_question}")
     else:
         lines.append(f"Draft ID: {draft.id}")
         lines.append('Yozish uchun "ha" yoki "tasdiqlayman" deb javob bering.')
