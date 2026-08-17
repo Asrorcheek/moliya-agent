@@ -162,6 +162,40 @@ export interface DashboardSummary {
   last_synced_at: string | null
 }
 
+export interface FinancialTrendPoint {
+  month: string
+  income_uzs: number
+  net_revenue_uzs: number
+  cost_of_goods_uzs: number
+  gross_profit_uzs: number
+  expense_uzs: number
+  net_profit_uzs: number
+  cash_inflow_uzs: number
+  cash_outflow_uzs: number
+  net_cash_flow_uzs: number
+  ending_cash_uzs: number
+}
+
+export interface BalanceSnapshot {
+  cash_uzs: number
+  bank_uzs: number
+  receivables_uzs: number
+  inventory_uzs: number
+  total_assets_uzs: number
+  payables_uzs: number
+  total_liabilities_uzs: number
+  equity_uzs: number
+  liabilities_and_equity_uzs: number
+  difference_uzs: number
+}
+
+export interface FinancialOverview {
+  source: 'google_sheets' | 'ledger'
+  month: string
+  trend: FinancialTrendPoint[]
+  balance: BalanceSnapshot
+}
+
 export interface Paginated<T> {
   items: T[]
   next_cursor: string | null

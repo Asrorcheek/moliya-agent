@@ -181,6 +181,14 @@ Sozlamalar shu asosiy SQLite bazada saqlanadi va deploy/restartdan keyin ham
 saqlanib qoladi. Standart kategoriyalar o‘zgartirilmaydi, kamida bitta `owner`
 qolishi backend tomonidan majburiy tekshiriladi.
 
+### Moliyaviy dashboard
+
+`GET /v1/reports/financial-overview?actor_id=...&month=YYYY-MM` bosh ekran uchun
+oxirgi 6 oylik P&L, Cash Flow va joriy Balance ko‘rsatkichlarini qaytaradi.
+Google Sheets rejimida qiymatlar bevosita `P&L`, `Cash Flow` va `Balance`
+tablaridan batch so‘rov bilan olinadi va 60 soniya cache qilinadi. Sheets
+vaqtincha javob bermasa, API SQLite ledger asosidagi hisobga avtomatik o‘tadi.
+
 ## Hermes skillni ulash
 
 Backend va skillni VM'ga ko'chirgandan keyin:

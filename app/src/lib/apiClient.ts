@@ -2,7 +2,7 @@
 // through the HttpOnly session cookie; the internal service token is never
 // exposed to frontend code.
 
-import type { AppSettings, AppUser, AuditEvent, BusinessProfile, Category, DashboardSummary, DraftRecord, DraftStatus, EntryKind, MonthlyReport, PaymentMethod, TransactionEntry, UserRole } from './types'
+import type { AppSettings, AppUser, AuditEvent, BusinessProfile, Category, DashboardSummary, DraftRecord, DraftStatus, EntryKind, FinancialOverview, MonthlyReport, PaymentMethod, TransactionEntry, UserRole } from './types'
 
 const BASE_URL = import.meta.env.VITE_MOLIYA_API_BASE_URL ?? ''
 
@@ -173,6 +173,11 @@ export const moliyaApi = {
       last_synced_at: recentTransactions[0]?.confirmed_at || null,
     }
   },
+
+  financialOverview: (actorId: string, month: string) =>
+    request<FinancialOverview>(
+      `/v1/reports/financial-overview${query({ actor_id: actorId, month })}`,
+    ),
 
   listAuditEvents: async (actorId: string): Promise<AuditEvent[]> => {
     const response = await request<{ items: BackendAuditEvent[]; total: number }>(

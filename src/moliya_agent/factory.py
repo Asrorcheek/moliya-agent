@@ -38,4 +38,5 @@ def build_service(settings: Settings) -> MoliyaService:
         parser=parser,
         sheet_writer=sheet_writer,
         allowed_actors=settings.allowed_actors,
+        report_reader=sheet_writer if isinstance(sheet_writer, GoogleSheetsWriter) else None,
     )

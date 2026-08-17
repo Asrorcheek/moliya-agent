@@ -37,6 +37,7 @@ class WebRouteTests(unittest.TestCase):
                 "/v1/drafts/{draft_id}",
                 "/v1/transactions",
                 "/v1/reports/dashboard",
+                "/v1/reports/financial-overview",
                 "/v1/audit-events",
                 "/v1/settings",
                 "/v1/settings/business",
@@ -70,6 +71,12 @@ class WebRouteTests(unittest.TestCase):
                 self.assertEqual(initial.status_code, 200)
                 self.assertEqual(len(initial.json()["categories"]), 7)
                 self.assertTrue(initial.json()["users"])
+                overview = client.get(
+                    "/v1/reports/financial-overview",
+                    params={"actor_id": "web-owner", "month": "2026-08"},
+                )
+                self.assertEqual(overview.status_code, 200)
+                self.assertEqual(len(overview.json()["trend"]), 6)
 
                 business = client.put(
                     "/v1/settings/business",

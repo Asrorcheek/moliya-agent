@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -12,10 +14,18 @@ class SheetWriteError(RuntimeError):
     pass
 
 
+class SheetReadError(RuntimeError):
+    pass
+
+
 class SheetWriter(Protocol):
     def write_draft(
         self, draft: DraftRecord, *, confirmed_by: str, confirmed_at: datetime
     ) -> int: ...
+
+
+class FinancialReportReader(Protocol):
+    def read_financial_overview(self, month: str) -> dict[str, object]: ...
 
 
 class InMemorySheetWriter:
@@ -104,6 +114,8 @@ class GoogleSheetsWriter:
         self._service = build(
             "sheets", "v4", credentials=credentials, cache_discovery=False
         )
+        self._report_cache: dict[str, tuple[float, dict[str, object]]] = {}
+        self._cache_lock = threading.RLock()
 
     @staticmethod
     def _quote_tab(title: str) -> str:
@@ -206,6 +218,114 @@ class GoogleSheetsWriter:
                 insertDataOption="INSERT_ROWS",
                 body={"majorDimension": "ROWS", "values": rows},
             ).execute()
+            with self._cache_lock:
+                self._report_cache.clear()
         except Exception as exc:
             raise SheetWriteError(f"Google Sheets yozuvi bajarilmadi: {exc}") from exc
         return len(rows)
+
+    @staticmethod
+    def _number(value: object) -> int:
+        if isinstance(value, bool):
+            return 0
+        if isinstance(value, int | float):
+            return round(value)
+        if isinstance(value, str):
+            try:
+                return round(float(value.replace(",", "")))
+            except ValueError:
+                return 0
+        return 0
+
+    @staticmethod
+    def _months_ending_at(month: str, count: int = 6) -> list[str]:
+        year, month_number = (int(part) for part in month.split("-", maxsplit=1))
+        result = []
+        for offset in range(count - 1, -1, -1):
+            absolute = year * 12 + month_number - 1 - offset
+            result.append(f"{absolute // 12:04d}-{absolute % 12 + 1:02d}")
+        return result
+
+    def read_financial_overview(self, month: str) -> dict[str, object]:
+        with self._cache_lock:
+            cached = self._report_cache.get(month)
+            if cached and time.monotonic() - cached[0] < 60:
+                return cached[1]
+        try:
+            response = (
+                self._service.spreadsheets()
+                .values()
+                .batchGet(
+                    spreadsheetId=self._spreadsheet_id,
+                    ranges=["'P&L'!A5:H64", "'Cash Flow'!A5:I64", "'Balance'!A4:B18"],
+                    valueRenderOption="UNFORMATTED_VALUE",
+                )
+                .execute()
+            )
+            ranges = response.get("valueRanges", [])
+            if len(ranges) != 3:
+                raise SheetReadError("Moliyaviy hisobot tablari topilmadi")
+            pnl_by_month = {
+                str(row[0]): row
+                for row in ranges[0].get("values", [])
+                if row and str(row[0]).strip()
+            }
+            cash_by_month = {
+                str(row[0]): row
+                for row in ranges[1].get("values", [])
+                if row and str(row[0]).strip()
+            }
+            trend = []
+            for label in self._months_ending_at(month):
+                pnl = [*pnl_by_month.get(label, []), *([0] * 8)][:8]
+                cash = [*cash_by_month.get(label, []), *([0] * 9)][:9]
+                trend.append(
+                    {
+                        "month": label,
+                        "income_uzs": self._number(pnl[1]),
+                        "net_revenue_uzs": self._number(pnl[3]),
+                        "cost_of_goods_uzs": self._number(pnl[4]),
+                        "gross_profit_uzs": self._number(pnl[5]),
+                        "expense_uzs": self._number(pnl[6]),
+                        "net_profit_uzs": self._number(pnl[7]),
+                        "cash_inflow_uzs": self._number(cash[1]),
+                        "cash_outflow_uzs": self._number(cash[2]),
+                        "net_cash_flow_uzs": self._number(cash[3]),
+                        "ending_cash_uzs": self._number(cash[8]),
+                    }
+                )
+            balance_values = {
+                str(row[0]): self._number(row[1] if len(row) > 1 else 0)
+                for row in ranges[2].get("values", [])
+                if row and str(row[0]).strip()
+            }
+            result: dict[str, object] = {
+                "source": "google_sheets",
+                "month": month,
+                "trend": trend,
+                "balance": {
+                    "cash_uzs": balance_values.get("Naqd", 0),
+                    "bank_uzs": balance_values.get("Karta/bank", 0),
+                    "receivables_uzs": balance_values.get("Debitor", 0),
+                    "inventory_uzs": balance_values.get("Tovar qoldig'i", 0),
+                    "total_assets_uzs": balance_values.get("Jami aktivlar", 0),
+                    "payables_uzs": balance_values.get("Kreditor", 0),
+                    "total_liabilities_uzs": balance_values.get(
+                        "Jami majburiyatlar", 0
+                    ),
+                    "equity_uzs": balance_values.get(
+                        "Boshlang'ich kapital + jamlangan foyda", 0
+                    ),
+                    "liabilities_and_equity_uzs": balance_values.get(
+                        "Majburiyatlar + kapital", 0
+                    ),
+                    "difference_uzs": balance_values.get("Balans tekshiruvi", 0),
+                },
+            }
+        except SheetReadError:
+            raise
+        except Exception as exc:
+            raise SheetReadError(f"Google Sheets hisobotini o'qib bo'lmadi: {exc}") from exc
+        with self._cache_lock:
+            self._report_cache[month] = (time.monotonic(), result)
+        return result

@@ -292,6 +292,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             actor_id=actor_for(principal, actor_id), month=month
         )
 
+    @app.get("/v1/reports/financial-overview", dependencies=[Depends(authenticate)])
+    def financial_overview(
+        month: str,
+        principal: Principal = Depends(authenticate),
+        actor_id: str | None = None,
+    ) -> dict[str, object]:
+        return service.financial_overview(
+            actor_id=actor_for(principal, actor_id), month=month
+        )
+
     @app.get("/v1/audit-events", dependencies=[Depends(authenticate)])
     def list_audit_events(
         principal: Principal = Depends(authenticate),

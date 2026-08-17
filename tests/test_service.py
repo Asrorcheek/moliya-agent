@@ -116,6 +116,31 @@ class MoliyaServiceTests(unittest.TestCase):
         self.assertEqual(row[15], "UZS")
         self.assertEqual(row[18], "confirmed")
 
+    def test_financial_overview_builds_pnl_cash_flow_and_balance(self) -> None:
+        draft = self.service.create_draft(
+            actor_id="owner",
+            source_id="web:financial-overview",
+            text="2 mln tushum naqd, 500 ming xarajat naqd",
+            received_at=self.received_at,
+        )
+        self.service.confirm(actor_id="owner", draft_id=draft.id)
+
+        overview = self.service.financial_overview(actor_id="owner", month="2026-07")
+
+        self.assertEqual(overview["source"], "ledger")
+        self.assertEqual(len(overview["trend"]), 6)
+        current = overview["trend"][-1]
+        self.assertEqual(current["income_uzs"], 2_000_000)
+        self.assertEqual(current["net_profit_uzs"], 1_500_000)
+        self.assertEqual(current["cash_inflow_uzs"], 2_000_000)
+        self.assertEqual(current["cash_outflow_uzs"], 500_000)
+        self.assertEqual(current["ending_cash_uzs"], 1_500_000)
+        balance = overview["balance"]
+        self.assertEqual(balance["cash_uzs"], 1_500_000)
+        self.assertEqual(balance["total_assets_uzs"], 1_500_000)
+        self.assertEqual(balance["liabilities_and_equity_uzs"], 1_500_000)
+        self.assertEqual(balance["difference_uzs"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

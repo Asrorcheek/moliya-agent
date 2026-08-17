@@ -1,66 +1,81 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/authContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { Card } from '@/components/ui/Card'
 import { CurrencyAmount } from '@/components/ui/CurrencyAmount'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/States'
 import { IncomeExpenseChart } from '@/components/charts/IncomeExpenseChart'
 import { CategoryBars } from '@/components/charts/CategoryBars'
+import { FinancialTrendChart } from '@/components/charts/FinancialTrendChart'
+import { BalanceChart } from '@/components/charts/BalanceChart'
 import { moliyaApi } from '@/lib/apiClient'
-import type { DashboardSummary } from '@/lib/types'
-import { currentMonthTashkent, formatDateTime, formatMonthLabel } from '@/lib/format'
+import type { DashboardSummary, FinancialOverview } from '@/lib/types'
+import { currentMonthTashkent, formatDateTime, formatUzsCompact } from '@/lib/format'
 import { Link } from '@/router'
 
+type FinancialTab = 'pnl' | 'cashflow' | 'balance'
+
 export function DashboardPage() {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const { session } = useAuth()
+  const [month, setMonth] = useState(currentMonthTashkent())
   const [data, setData] = useState<DashboardSummary | null>(null)
+  const [financial, setFinancial] = useState<FinancialOverview | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!session) return
     setStatus('loading')
-    moliyaApi
-      .dashboardSummary(session.actorId, currentMonthTashkent())
-      .then((res) => {
-        setData(res)
+    Promise.all([
+      moliyaApi.dashboardSummary(session.actorId, month),
+      moliyaApi.financialOverview(session.actorId, month),
+    ])
+      .then(([summary, overview]) => {
+        setData(summary)
+        setFinancial(overview)
         setStatus('ready')
       })
       .catch(() => setStatus('error'))
-  }
+  }, [month, session])
 
-  useEffect(load, [session]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const balanceCash = financial
+    ? financial.balance.cash_uzs + financial.balance.bank_uzs
+    : 0
 
   return (
     <AppShell title={t('dashboard.title')}>
       {status === 'loading' && <LoadingState />}
       {status === 'error' && <ErrorState onRetry={load} />}
-      {status === 'ready' && data && (
+      {status === 'ready' && data && financial && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <h2 style={{ fontSize: 15, color: 'var(--color-text-secondary)', fontWeight: 400 }}>
-              {t('dashboard.month')}: {formatMonthLabel(data.month, locale)}
-            </h2>
-            <SyncBadge status={data.sync_status} lastSyncedAt={data.last_synced_at} />
+          <div className="dashboard-toolbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label htmlFor="dashboard-month" style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{t('dashboard.month')}</label>
+              <input id="dashboard-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="compact-field" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <SyncBadge status={data.sync_status} lastSyncedAt={data.last_synced_at} />
+              <Link to="/add" className="primary-link-button">+ {t('dashboard.quickAdd')}</Link>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 'var(--space-4)' }}>
+          <div className="dashboard-kpi-grid">
             <StatCard label={t('dashboard.income')} value={data.income_uzs} tone="positive" />
             <StatCard label={t('dashboard.expense')} value={data.expense_uzs} tone="negative" />
-            <StatCard label={t('dashboard.costOfGoods')} value={data.cost_of_goods_uzs} />
-            <StatCard label={t('dashboard.grossProfit')} value={data.gross_profit_uzs} tone="positive" />
-            <StatCard label={t('dashboard.netProfit')} value={data.net_profit_uzs} tone="positive" />
+            <StatCard label={t('dashboard.netProfit')} value={data.net_profit_uzs} tone={data.net_profit_uzs < 0 ? 'negative' : 'positive'} />
+            <StatCard label={t('dashboard.cashBalance')} value={balanceCash} tone={balanceCash < 0 ? 'negative' : 'neutral'} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-4)' }}>
-            <StatCard label={t('dashboard.cash')} value={data.cash_uzs} size="sm" />
-            <StatCard label={t('dashboard.card')} value={data.card_uzs} size="sm" />
-            <StatCard label={t('dashboard.transfer')} value={data.transfer_uzs} size="sm" />
-          </div>
+          <FinancialReports overview={financial} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 'var(--space-4)' }} className="dashboard-grid">
+          <div className="dashboard-grid">
             <Card>
               <h3 style={{ marginBottom: 'var(--space-4)' }}>{t('dashboard.incomeVsExpense')}</h3>
               <IncomeExpenseChart data={data.income_vs_expense_by_day} incomeLabel={t('dashboard.income')} expenseLabel={t('dashboard.expense')} />
@@ -71,7 +86,7 @@ export function DashboardPage() {
             </Card>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: 'var(--space-4)' }} className="dashboard-grid">
+          <div className="dashboard-grid">
             <Card padded={false}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-5) var(--space-5) 0' }}>
                 <h3>{t('dashboard.recentTransactions')}</h3>
@@ -82,10 +97,10 @@ export function DashboardPage() {
               ) : (
                 <ul style={{ listStyle: 'none', margin: 0, padding: 'var(--space-3) var(--space-5) var(--space-5)' }}>
                   {data.recent_transactions.map((tx) => (
-                    <li key={tx.entry_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
+                    <li key={tx.entry_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
                       <div>
                         <div style={{ fontSize: 14 }}>{t(`entryKind.${tx.kind}` as const)}</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>{tx.counterparty ?? '\u2014'}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>{tx.counterparty ?? '—'}</div>
                       </div>
                       <CurrencyAmount value={tx.kind === 'expense' || tx.kind === 'cost_of_goods' ? -tx.amount_uzs : tx.amount_uzs} size="sm" />
                     </li>
@@ -103,18 +118,91 @@ export function DashboardPage() {
           </div>
         </div>
       )}
-
-      <style>{`@media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr !important; } }`}</style>
     </AppShell>
   )
 }
 
-function StatCard({ label, value, tone = 'neutral', size = 'md' }: { label: string; value: number; tone?: 'neutral' | 'positive' | 'negative'; size?: 'sm' | 'md' }) {
+function FinancialReports({ overview }: { overview: FinancialOverview }) {
+  const { t } = useI18n()
+  const [tab, setTab] = useState<FinancialTab>('pnl')
+  const current = overview.trend.find((point) => point.month === overview.month) ?? overview.trend.at(-1)
   return (
-    <Card style={{ padding: size === 'sm' ? 'var(--space-4)' : 'var(--space-5)' }}>
-      <div style={{ fontSize: 12.5, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{label}</div>
-      <CurrencyAmount value={value} tone={tone} size={size === 'sm' ? 'md' : 'lg'} />
+    <Card>
+      <div className="financial-header">
+        <div>
+          <h2 style={{ fontSize: 18 }}>{t('dashboard.financialReports')}</h2>
+          <div style={{ marginTop: 5 }}>
+            <Badge tone={overview.source === 'google_sheets' ? 'success' : 'neutral'}>
+              {overview.source === 'google_sheets' ? t('dashboard.sourceSheets') : t('dashboard.sourceLedger')}
+            </Badge>
+          </div>
+        </div>
+        <div className="segmented-control" role="tablist" aria-label={t('dashboard.financialReports')}>
+          {(['pnl', 'cashflow', 'balance'] as const).map((item) => (
+            <Button key={item} type="button" variant={tab === item ? 'primary' : 'ghost'} onClick={() => setTab(item)} aria-pressed={tab === item} style={{ padding: '8px 12px' }}>
+              {item === 'pnl' ? 'P&L' : item === 'cashflow' ? t('dashboard.cashFlow') : t('dashboard.balance')}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'pnl' && current && (
+        <div>
+          <div className="financial-kpis">
+            <MiniStat label={t('dashboard.netRevenue')} value={current.net_revenue_uzs} />
+            <MiniStat label={t('dashboard.grossProfit')} value={current.gross_profit_uzs} />
+            <MiniStat label={t('dashboard.netProfit')} value={current.net_profit_uzs} />
+          </div>
+          <FinancialTrendChart data={overview.trend} series={[
+            { key: 'income_uzs', label: t('dashboard.income'), color: 'var(--color-primary)' },
+            { key: 'gross_profit_uzs', label: t('dashboard.grossProfit'), color: 'var(--color-amber)' },
+            { key: 'net_profit_uzs', label: t('dashboard.netProfit'), color: 'var(--color-success)' },
+          ]} />
+        </div>
+      )}
+
+      {tab === 'cashflow' && current && (
+        <div>
+          <div className="financial-kpis">
+            <MiniStat label={t('dashboard.cashInflow')} value={current.cash_inflow_uzs} />
+            <MiniStat label={t('dashboard.cashOutflow')} value={current.cash_outflow_uzs} />
+            <MiniStat label={t('dashboard.netCashFlow')} value={current.net_cash_flow_uzs} />
+            <MiniStat label={t('dashboard.endingCash')} value={current.ending_cash_uzs} />
+          </div>
+          <FinancialTrendChart data={overview.trend} series={[
+            { key: 'cash_inflow_uzs', label: t('dashboard.cashInflow'), color: 'var(--color-success)' },
+            { key: 'cash_outflow_uzs', label: t('dashboard.cashOutflow'), color: 'var(--color-danger)' },
+            { key: 'ending_cash_uzs', label: t('dashboard.endingCash'), color: 'var(--color-primary)' },
+          ]} />
+        </div>
+      )}
+
+      {tab === 'balance' && (
+        <BalanceChart data={overview.balance} labels={{
+          cash: t('dashboard.cash'), bank: t('dashboard.bank'), receivables: t('dashboard.receivables'), inventory: t('dashboard.inventory'), payables: t('dashboard.payables'), equity: t('dashboard.equity'), totalAssets: t('dashboard.totalAssets'), liabilitiesEquity: t('dashboard.liabilitiesEquity'), difference: t('dashboard.balanceDifference'),
+        }} />
+      )}
     </Card>
+  )
+}
+
+function StatCard({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'positive' | 'negative' }) {
+  const color = tone === 'positive' ? 'var(--color-success)' : tone === 'negative' ? 'var(--color-danger)' : 'var(--color-text-primary)'
+  return (
+    <Card style={{ padding: 'var(--space-5)' }}>
+      <div style={{ fontSize: 12.5, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{label}</div>
+      <span className="dashboard-amount-full"><CurrencyAmount value={value} tone={tone} size="lg" /></span>
+      <span className="dashboard-amount-compact tabular-num" style={{ color, fontSize: 22, fontWeight: 500, whiteSpace: 'nowrap' }}>{formatUzsCompact(value)}</span>
+    </Card>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 3 }}>{label}</div>
+      <CurrencyAmount value={value} size="sm" />
+    </div>
   )
 }
 
@@ -125,11 +213,6 @@ function SyncBadge({ status, lastSyncedAt }: { status: DashboardSummary['sync_st
     degraded: { tone: 'amber' as const, label: t('dashboard.syncDegraded') },
     failed: { tone: 'danger' as const, label: t('dashboard.syncFailed') },
   }
-  const cfg = map[status]
-  return (
-    <Badge tone={cfg.tone}>
-      {cfg.label}
-      {lastSyncedAt ? ` \u00b7 ${formatDateTime(lastSyncedAt)}` : ''}
-    </Badge>
-  )
+  const config = map[status]
+  return <Badge tone={config.tone}>{config.label}{lastSyncedAt ? ` · ${formatDateTime(lastSyncedAt)}` : ''}</Badge>
 }
