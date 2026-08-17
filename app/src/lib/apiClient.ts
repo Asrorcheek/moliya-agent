@@ -5,6 +5,7 @@
 import type { AppSettings, AppUser, AuditEvent, BusinessProfile, Category, DashboardSummary, DraftRecord, DraftStatus, EntryKind, FinancialOverview, MonthlyReport, PaymentMethod, TransactionEntry, UserRole } from './types'
 
 const BASE_URL = import.meta.env.VITE_MOLIYA_API_BASE_URL ?? ''
+export const UNAUTHORIZED_EVENT = 'moliya:unauthorized'
 
 export class ApiError extends Error {
   status: number
@@ -24,6 +25,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   if (!res.ok) {
+    if (res.status === 401) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
     let detail = res.statusText
     try {
       const body = await res.json()

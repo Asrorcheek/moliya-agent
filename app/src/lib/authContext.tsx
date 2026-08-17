@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { UserRole } from './types'
-import { ApiError, moliyaApi } from './apiClient'
+import { ApiError, moliyaApi, UNAUTHORIZED_EVENT } from './apiClient'
 
 export interface Session {
   actorId: string
@@ -30,11 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      setSession(null)
+      setLoading(false)
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
     moliyaApi
       .currentSession()
       .then((response) => setSession(toSession(response)))
       .catch(() => setSession(null))
       .finally(() => setLoading(false))
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [])
 
   const value = useMemo<AuthContextValue>(
