@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -81,6 +82,13 @@ def run_browser(
         fields[1].send_keys(password)
         driver.find_element(By.CSS_SELECTOR, "form button[type=submit]").click()
         present(".floating-add-button")
+
+        if read_only:
+            pnl_values = present(".financial-kpis").text
+            assert re.search(r"[1-9]", pnl_values), "P&L values are all zero"
+            driver.find_elements(By.CSS_SELECTOR, ".segmented-control button")[1].click()
+            wait.until(lambda browser: re.search(r"[1-9]", browser.find_element(By.CSS_SELECTOR, ".financial-kpis").text))
+            passed.append("financial P&L and cash-flow cards contain calculated values")
 
         income_link = present('a.kpi-link[href*="kind=income"]')
         expected_month = income_link.get_attribute("href").split("month=", 1)[1]
