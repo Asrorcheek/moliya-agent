@@ -61,7 +61,13 @@ export function Sidebar() {
 function LedgerMark() {
   return (
     <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
-      <path d="M3 19 8.5 5h4L8 19H3Zm9 0 4.2-11 6.8 11h-5l-2.2-4-1.5 4H12Z" fill="#ff2f6d" />
+      <defs>
+        <linearGradient id="moliya-mark" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#5b91ff" />
+          <stop offset="100%" stopColor="#9d6bff" />
+        </linearGradient>
+      </defs>
+      <path d="M3 19 8.5 5h4L8 19H3Zm9 0 4.2-11 6.8 11h-5l-2.2-4-1.5 4H12Z" fill="url(#moliya-mark)" />
     </svg>
   )
 }

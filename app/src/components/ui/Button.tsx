@@ -8,64 +8,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean
 }
 
-const BASE: Record<Variant, { bg: string; fg: string; border: string; hoverBg: string }> = {
-  primary: {
-    bg: 'var(--color-primary)',
-    fg: 'var(--color-text-on-primary)',
-    border: 'var(--color-primary)',
-    hoverBg: 'var(--color-primary-strong)',
-  },
-  secondary: {
-    bg: 'var(--color-surface)',
-    fg: 'var(--color-text-primary)',
-    border: 'var(--color-border-strong)',
-    hoverBg: 'var(--color-bg)',
-  },
-  ghost: {
-    bg: 'transparent',
-    fg: 'var(--color-text-secondary)',
-    border: 'transparent',
-    hoverBg: 'var(--color-bg)',
-  },
-  danger: {
-    bg: 'var(--color-danger)',
-    fg: '#FFF6F5',
-    border: 'var(--color-danger)',
-    hoverBg: 'var(--color-danger-strong)',
-  },
-}
-
-export function Button({ variant = 'secondary', icon, fullWidth, children, style, disabled, ...rest }: ButtonProps) {
-  const c = BASE[variant]
+/** Styling lives in global.css under `.ui-btn` so that hover, focus-visible
+ * and active states are real CSS states rather than JS mouse handlers — the
+ * previous inline approach left keyboard users with no visible feedback. */
+export function Button({ variant = 'secondary', icon, fullWidth, children, style, className, disabled, ...rest }: ButtonProps) {
+  const classes = ['ui-btn', `ui-btn-${variant}`]
+  if (fullWidth) classes.push('ui-btn-block')
+  if (className) classes.push(className)
   return (
-    <button
-      {...rest}
-      disabled={disabled}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        width: fullWidth ? '100%' : undefined,
-        padding: '10px 16px',
-        fontSize: 14,
-        fontWeight: 500,
-        borderRadius: 'var(--radius-md)',
-        border: `1px solid ${c.border}`,
-        background: c.bg,
-        color: c.fg,
-        opacity: disabled ? 0.55 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'background 120ms ease',
-        ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = c.hoverBg
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = c.bg
-      }}
-    >
+    <button {...rest} disabled={disabled} className={classes.join(' ')} style={style}>
       {icon}
       {children}
     </button>

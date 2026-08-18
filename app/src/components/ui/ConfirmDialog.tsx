@@ -95,10 +95,10 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      className="dialog-overlay"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 20, 18, 0.45)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -110,15 +110,8 @@ export function ConfirmDialog({
       <div
         ref={dialogRef}
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
-          boxShadow: 'var(--shadow-md)',
-          width: '100%',
-          maxWidth: 440,
-          padding: 'var(--space-6)',
-        }}
+        className="dialog-panel"
+        style={{ width: '100%', maxWidth: 440, padding: 'var(--space-6)' }}
       >
         <div className="dialog-heading">
           <h2 id="confirm-dialog-title">{title}</h2>
@@ -126,10 +119,10 @@ export function ConfirmDialog({
             <NavIcon name="close" />
           </button>
         </div>
-        <div style={{ color: 'var(--color-text-secondary)', fontSize: 14, marginBottom: 'var(--space-4)' }}>{body}</div>
+        <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-base)', lineHeight: 1.6, marginBottom: 'var(--space-4)' }}>{body}</div>
 
         {requireAcknowledge && (
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13.5, marginBottom: 'var(--space-5)', cursor: 'pointer' }}>
+          <label className="dialog-ack" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 'var(--text-base)', marginBottom: 'var(--space-5)', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={acknowledged}

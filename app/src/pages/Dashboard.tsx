@@ -76,11 +76,11 @@ export function DashboardPage() {
 
           <div className="dashboard-grid">
             <Card>
-              <h3 style={{ marginBottom: 'var(--space-4)' }}>{t('dashboard.incomeVsExpense')}</h3>
+              <h3 className="card-title">{t('dashboard.incomeVsExpense')}</h3>
               <IncomeExpenseChart data={data.income_vs_expense_by_day} incomeLabel={t('dashboard.income')} expenseLabel={t('dashboard.expense')} />
             </Card>
             <Card>
-              <h3 style={{ marginBottom: 'var(--space-4)' }}>{t('dashboard.expenseByCategory')}</h3>
+              <h3 className="card-title">{t('dashboard.expenseByCategory')}</h3>
               <CategoryBars data={data.expense_by_category} />
             </Card>
           </div>
@@ -112,7 +112,7 @@ export function DashboardPage() {
                 <h3>{t('dashboard.pendingConfirmations')}</h3>
                 <Link to="/drafts" style={{ fontSize: 13 }}>{t('dashboard.viewAll')}</Link>
               </div>
-              <div style={{ fontSize: 32, fontFamily: 'var(--font-display)' }}>{data.pending_draft_count}</div>
+              <div className="pending-count">{data.pending_draft_count}</div>
             </Card>
           </div>
         </div>
@@ -188,10 +188,11 @@ function FinancialReports({ overview }: { overview: FinancialOverview }) {
 function StatCard({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'positive' | 'negative' }) {
   const color = tone === 'positive' ? 'var(--color-success)' : tone === 'negative' ? 'var(--color-danger)' : 'var(--color-text-primary)'
   return (
-    <Card style={{ padding: 'var(--space-5)' }}>
-      <div style={{ fontSize: 12.5, color: 'var(--color-text-secondary)', marginBottom: 6 }}>{label}</div>
-      <span className="dashboard-amount-full"><CurrencyAmount value={value} tone={tone} size="lg" /></span>
-      <span className="dashboard-amount-compact tabular-num" style={{ color, fontSize: 22, fontWeight: 500, whiteSpace: 'nowrap' }}>{formatUzsCompact(value)}</span>
+    <Card className="kpi-card" data-tone={tone} style={{ padding: 'var(--space-5)' }}>
+      <span className="kpi-wash" aria-hidden="true" />
+      <div className="kpi-label"><span className="kpi-dot" aria-hidden="true" />{label}</div>
+      <span className="kpi-value dashboard-amount-full"><CurrencyAmount value={value} tone={tone} size="lg" /></span>
+      <span className="kpi-value dashboard-amount-compact tabular-num" style={{ color, fontSize: 'clamp(17px, 5vw, 24px)', fontWeight: 650, letterSpacing: 'var(--tracking-tight)', whiteSpace: 'nowrap' }}>{formatUzsCompact(value)}</span>
     </Card>
   )
 }
@@ -199,8 +200,8 @@ function StatCard({ label, value, tone = 'neutral' }: { label: string; value: nu
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 3 }}>{label}</div>
-      <CurrencyAmount value={value} size="sm" />
+      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, letterSpacing: 'var(--tracking-wide)', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 5 }}>{label}</div>
+      <CurrencyAmount value={value} size="md" />
     </div>
   )
 }

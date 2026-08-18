@@ -1,50 +1,158 @@
+/* ============================================================================
+   Moliya Agent — Design Tokens
+   Premium dark finance system. Single source of truth for colour, depth,
+   rhythm, type and motion. Every legacy token name is preserved so existing
+   inline styles keep resolving; new tokens extend rather than replace.
+   ========================================================================== */
+
 :root {
+  /* --- Type ------------------------------------------------------------- */
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  --color-bg: #08090c;
-  --color-surface: #0b0c10;
-  --color-surface-raised: #111319;
-  --color-border: #25272e;
-  --color-border-strong: #343741;
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 13.5px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
 
-  --color-text-primary: #f5f6f8;
-  --color-text-secondary: #a0a4ae;
-  --color-text-muted: #707580;
+  --tracking-tight: -0.018em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+  --tracking-caps: 0.11em;
+
+  /* --- Canvas & surfaces ------------------------------------------------ */
+  /* Cool near-black with a blue undertone: reads richer than neutral grey
+     and lets the accent blue sit on it without vibrating. */
+  --color-bg: #06070b;
+  --color-bg-deep: #030407;
+  --color-surface: #0b0d13;
+  --color-surface-raised: #12151d;
+  --color-surface-sunken: #08090e;
+  --color-surface-hover: #161a23;
+
+  /* Glass layers — translucent white over the canvas. This is what carries
+     the premium feel: depth comes from light, not from lighter greys. */
+  --glass-1: rgba(255, 255, 255, 0.022);
+  --glass-2: rgba(255, 255, 255, 0.04);
+  --glass-3: rgba(255, 255, 255, 0.065);
+  --glass-blur: saturate(150%) blur(18px);
+
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-strong: rgba(255, 255, 255, 0.13);
+  --color-border-accent: rgba(77, 141, 255, 0.32);
+
+  /* Hairline highlight used on the top edge of raised cards. */
+  --edge-top: rgba(255, 255, 255, 0.075);
+
+  /* --- Text ------------------------------------------------------------- */
+  --color-text-primary: #f2f4f8;
+  --color-text-secondary: #98a0b0;
+  --color-text-muted: #646c7c;
+  --color-text-faint: #454b58;
   --color-text-on-primary: #ffffff;
 
-  --color-primary: #1768ff;
-  --color-primary-strong: #3b82ff;
-  --color-primary-soft: #101d3a;
+  /* --- Accent ----------------------------------------------------------- */
+  --color-primary: #2e6bff;
+  --color-primary-strong: #5b91ff;
+  --color-primary-bright: #7dabff;
+  --color-primary-soft: rgba(46, 107, 255, 0.14);
+  --color-primary-glow: rgba(46, 107, 255, 0.42);
 
-  --color-success: #00c875;
-  --color-success-soft: #0b2a20;
-  --color-success-strong: #24d98b;
+  /* --- Semantic --------------------------------------------------------- */
+  --color-success: #12c98d;
+  --color-success-strong: #3ee0aa;
+  --color-success-soft: rgba(18, 201, 141, 0.13);
+  --color-success-glow: rgba(18, 201, 141, 0.34);
 
-  --color-danger: #f04452;
-  --color-danger-soft: #321419;
-  --color-danger-strong: #ff6b75;
+  --color-danger: #ff4d5e;
+  --color-danger-strong: #ff7d89;
+  --color-danger-soft: rgba(255, 77, 94, 0.13);
+  --color-danger-glow: rgba(255, 77, 94, 0.34);
 
-  --color-amber: #f6b94b;
-  --color-amber-soft: #30250f;
-  --color-amber-strong: #ffc963;
+  --color-amber: #ffb020;
+  --color-amber-strong: #ffc857;
+  --color-amber-soft: rgba(255, 176, 32, 0.13);
+  --color-amber-glow: rgba(255, 176, 32, 0.3);
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+  --color-violet: #9d6bff;
+  --color-violet-soft: rgba(157, 107, 255, 0.13);
+  --color-teal: #22c8d8;
+  --color-teal-soft: rgba(34, 200, 216, 0.13);
 
+  /* --- Categorical chart palette ----------------------------------------
+     Eight hues tuned for legibility on a near-black canvas, ordered so that
+     adjacent series never collide in hue or luminance. Never reuse the
+     semantic income/expense colours for categories. */
+  --chart-1: #4d8dff;
+  --chart-2: #12c98d;
+  --chart-3: #ffb020;
+  --chart-4: #9d6bff;
+  --chart-5: #22c8d8;
+  --chart-6: #ff7ab0;
+  --chart-7: #7ee081;
+  --chart-8: #ff8f4d;
+
+  --chart-grid: rgba(255, 255, 255, 0.055);
+  --chart-axis: rgba(255, 255, 255, 0.12);
+
+  /* --- Gradients -------------------------------------------------------- */
+  --gradient-surface: linear-gradient(168deg, rgba(255, 255, 255, 0.048) 0%, rgba(255, 255, 255, 0.012) 42%, rgba(255, 255, 255, 0) 100%);
+  --gradient-primary: linear-gradient(135deg, #3d7bff 0%, #2e6bff 52%, #1f4fd6 100%);
+  --gradient-danger: linear-gradient(135deg, #ff5f6f 0%, #ee3546 100%);
+  --gradient-brand: linear-gradient(135deg, #5b91ff 0%, #9d6bff 100%);
+  --gradient-sidebar: linear-gradient(180deg, #090b11 0%, #06070b 100%);
+  --gradient-topbar: linear-gradient(180deg, rgba(14, 17, 24, 0.86) 0%, rgba(8, 10, 15, 0.78) 100%);
+
+  /* KPI tile washes — accent bleeds up from the lower-left corner. */
+  --wash-neutral: radial-gradient(120% 140% at 0% 100%, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 62%);
+  --wash-positive: radial-gradient(120% 140% at 0% 100%, rgba(18, 201, 141, 0.17) 0%, rgba(18, 201, 141, 0) 62%);
+  --wash-negative: radial-gradient(120% 140% at 0% 100%, rgba(255, 77, 94, 0.16) 0%, rgba(255, 77, 94, 0) 62%);
+  --wash-primary: radial-gradient(120% 140% at 0% 100%, rgba(46, 107, 255, 0.19) 0%, rgba(46, 107, 255, 0) 62%);
+
+  /* --- Elevation --------------------------------------------------------
+     Two-part shadows: a tight contact shadow plus a wide ambient one. */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.44), 0 2px 8px rgba(0, 0, 0, 0.26);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.42), 0 14px 40px rgba(0, 0, 0, 0.46);
+  --shadow-lg: 0 6px 16px rgba(0, 0, 0, 0.48), 0 32px 70px rgba(0, 0, 0, 0.58);
+  --shadow-glow-primary: 0 6px 22px -6px var(--color-primary-glow);
+  --shadow-glow-danger: 0 6px 22px -6px var(--color-danger-glow);
+
+  --ring: 0 0 0 3px rgba(46, 107, 255, 0.34);
+  --ring-danger: 0 0 0 3px rgba(255, 77, 94, 0.3);
+
+  /* --- Radii ------------------------------------------------------------ */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* --- Rhythm ----------------------------------------------------------- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 24px;
+  --space-5: 22px;
   --space-6: 32px;
   --space-7: 48px;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .32);
-  --shadow-md: 0 14px 40px rgba(0, 0, 0, .42);
+  /* --- Shell ------------------------------------------------------------ */
+  --sidebar-width: 252px;
+  --topbar-height: 60px;
 
-  --sidebar-width: 280px;
-  --topbar-height: 70px;
+  /* --- Motion ----------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 380ms;
+  --dur-chart: 720ms;
 }

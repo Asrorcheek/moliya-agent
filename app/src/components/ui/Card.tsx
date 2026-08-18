@@ -5,10 +5,11 @@ type CardProps = HTMLAttributes<HTMLDivElement> & {
   padded?: boolean
 }
 
-export function Card({ children, style, padded = true, ...rest }: CardProps) {
+export function Card({ children, style, className, padded = true, ...rest }: CardProps) {
   return (
     <div
       {...rest}
+      className={className ? `ui-card ${className}` : 'ui-card'}
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
