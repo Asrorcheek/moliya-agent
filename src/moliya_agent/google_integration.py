@@ -79,7 +79,7 @@ class GoogleIntegrationManager:
             }
         }
 
-    def _state(self, actor_id: str, user_id: str) -> str:
+    def _state(self, actor_id: str, user_id: str, code_verifier: str) -> str:
         payload = (
             base64.urlsafe_b64encode(
                 json.dumps(
@@ -88,6 +88,7 @@ class GoogleIntegrationManager:
                         "user_id": user_id,
                         "nonce": secrets.token_urlsafe(12),
                         "exp": int(time.time()) + 10 * 60,
+                        "pkce": self._cipher.encrypt(code_verifier.encode()).decode(),
                     },
                     separators=(",", ":"),
                 ).encode()
@@ -127,8 +128,15 @@ class GoogleIntegrationManager:
             raise GoogleIntegrationError("Google OAuth state noto'g'ri") from exc
 
     def authorization_url(self, actor_id: str, user_id: str) -> str:
-        state = self._state(actor_id, user_id)
-        flow = Flow.from_client_config(self._client_config(), scopes=GOOGLE_SCOPES, state=state)
+        code_verifier = secrets.token_urlsafe(96)
+        state = self._state(actor_id, user_id, code_verifier)
+        flow = Flow.from_client_config(
+            self._client_config(),
+            scopes=GOOGLE_SCOPES,
+            state=state,
+            code_verifier=code_verifier,
+            autogenerate_code_verifier=False,
+        )
         flow.redirect_uri = self._settings.google_oauth_redirect_uri
         url, _ = flow.authorization_url(
             access_type="offline",
@@ -140,6 +148,10 @@ class GoogleIntegrationManager:
     def complete_oauth(self, *, state: str, code: str) -> str:
         data = self._verify_state(state)
         actor_id = str(data["actor_id"])
+        try:
+            code_verifier = self._cipher.decrypt(str(data["pkce"]).encode()).decode()
+        except (InvalidToken, KeyError, TypeError, ValueError) as exc:
+            raise GoogleIntegrationError("Google OAuth PKCE state noto'g'ri") from exc
         member = self._store.get_login_member(str(data["user_id"]))
         if (
             not member
@@ -148,7 +160,13 @@ class GoogleIntegrationManager:
             or member["actor_id"] != actor_id
         ):
             raise GoogleIntegrationError("Google ulash uchun Owner sessiyasi yaroqsiz")
-        flow = Flow.from_client_config(self._client_config(), scopes=GOOGLE_SCOPES, state=state)
+        flow = Flow.from_client_config(
+            self._client_config(),
+            scopes=GOOGLE_SCOPES,
+            state=state,
+            code_verifier=code_verifier,
+            autogenerate_code_verifier=False,
+        )
         flow.redirect_uri = self._settings.google_oauth_redirect_uri
         try:
             flow.fetch_token(code=code)
