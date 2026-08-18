@@ -46,7 +46,12 @@ def wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
     raise RuntimeError("Server did not become healthy within 20 seconds")
 
 
-def run_browser(base_url: str) -> list[str]:
+def run_browser(
+    base_url: str,
+    username: str = "admin",
+    password: str = "dev-admin",
+    read_only: bool = False,
+) -> list[str]:
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -72,8 +77,8 @@ def run_browser(base_url: str) -> list[str]:
     try:
         driver.get(base_url)
         fields = wait.until(lambda browser: browser.find_elements(By.CSS_SELECTOR, "form input"))
-        fields[0].send_keys("admin")
-        fields[1].send_keys("dev-admin")
+        fields[0].send_keys(username)
+        fields[1].send_keys(password)
         driver.find_element(By.CSS_SELECTOR, "form button[type=submit]").click()
         present(".floating-add-button")
 
@@ -98,8 +103,18 @@ def run_browser(base_url: str) -> list[str]:
         present(".sidebar-profile-link").click()
         path_ends_with("/profile")
         present(".profile-page")
-        assert "admin" in present(".profile-details").text.lower()
+        wait.until(lambda browser: len(browser.find_elements(By.CSS_SELECTOR, ".profile-details dd")) == 3)
         passed.append("sidebar account opens the personal profile")
+
+        if read_only:
+            severe = [
+                entry
+                for entry in driver.get_log("browser")
+                if entry["level"] == "SEVERE"
+                and not ("401" in entry["message"] and "/v1/session" in entry["message"])
+            ]
+            assert not severe, f"Unexpected browser console errors: {severe}"
+            return passed
 
         driver.get(base_url)
         present(".floating-add-button")
@@ -196,7 +211,19 @@ def run_browser(base_url: str) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--base-url", help="Run read-only smoke checks against an existing deployment")
     args = parser.parse_args()
+    if args.base_url:
+        username = os.environ.get("MOLIYA_TEST_USERNAME")
+        password = os.environ.get("MOLIYA_TEST_PASSWORD")
+        if not username or not password:
+            parser.error("MOLIYA_TEST_USERNAME and MOLIYA_TEST_PASSWORD are required with --base-url")
+        checks = run_browser(args.base_url.rstrip("/"), username, password, read_only=True)
+        print("browser_regressions=ok")
+        for check in checks:
+            print(f"  - {check}")
+        return 0
+
     if not args.skip_build:
         subprocess.run(["npm", "run", "build"], cwd=APP_DIR, check=True)
 
