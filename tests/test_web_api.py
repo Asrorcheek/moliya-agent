@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
@@ -211,6 +212,15 @@ class WebRouteTests(unittest.TestCase):
                 authorization_url = response.json()["authorization_url"]
                 self.assertIn("accounts.google.com", authorization_url)
                 self.assertIn("state=", authorization_url)
+                scopes = set(parse_qs(urlparse(authorization_url).query)["scope"][0].split())
+                self.assertEqual(
+                    scopes,
+                    {
+                        "openid",
+                        "https://www.googleapis.com/auth/userinfo.email",
+                        "https://www.googleapis.com/auth/drive.file",
+                    },
+                )
                 integration = client.get("/v1/settings").json()["integration"]
                 self.assertTrue(integration["oauth_configured"])
                 self.assertTrue(integration["picker_configured"])

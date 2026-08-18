@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import threading
 import time
@@ -22,9 +23,11 @@ from .workbook import initialize_workbook
 
 GOOGLE_SCOPES = (
     "openid",
-    "email",
+    "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/drive.file",
 )
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleIntegrationError(RuntimeError):
@@ -162,7 +165,9 @@ class GoogleIntegrationManager:
         except GoogleIntegrationError:
             raise
         except Exception as exc:
-            raise GoogleIntegrationError(f"Google OAuth yakunlanmadi: {exc}") from exc
+            # OAuth responses can contain credentials, so log only the exception type.
+            logger.warning("google_oauth_completion_failed exception_type=%s", type(exc).__name__)
+            raise GoogleIntegrationError("Google OAuth yakunlanmadi") from exc
         encrypted = self._cipher.encrypt(credentials.refresh_token.encode()).decode()
         self._store.save_google_connection(
             actor_id,
