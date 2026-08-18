@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import date, timedelta
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -83,6 +84,30 @@ def run_browser(
         driver.find_element(By.CSS_SELECTOR, "form button[type=submit]").click()
         present(".floating-add-button")
 
+        date_fields = wait.until(lambda browser: browser.find_elements(By.CSS_SELECTOR, ".chart-date-filters input[type=date]"))
+        range_end = date.fromisoformat(date_fields[1].get_attribute("max"))
+        range_start = range_end - timedelta(days=6)
+        driver.execute_script(
+            """
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            setter.call(arguments[0], arguments[1]);
+            arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+            arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+            """,
+            date_fields[0],
+            range_start.isoformat(),
+        )
+        wait.until(lambda browser: len(browser.find_elements(By.CSS_SELECTOR, ".chart-hit-area:not(.financial-chart-hit-area)")) == 7)
+        daily_hits = driver.find_elements(By.CSS_SELECTOR, ".chart-hit-area:not(.financial-chart-hit-area)")
+        ActionChains(driver).move_to_element(daily_hits[3]).perform()
+        assert "so'm" in present(".chart-tooltip:not(.chart-tooltip-wide)").text
+        passed.append("daily chart supports exact date range and amount tooltip")
+
+        financial_hit = present(".financial-chart-hit-area")
+        ActionChains(driver).move_to_element(financial_hit).perform()
+        assert "so'm" in present(".chart-tooltip-wide").text
+        passed.append("financial trend exposes exact amounts on hover")
+
         if read_only:
             pnl_values = present(".financial-kpis").text
             assert re.search(r"[1-9]", pnl_values), "P&L values are all zero"
@@ -90,6 +115,7 @@ def run_browser(
             wait.until(lambda browser: re.search(r"[1-9]", browser.find_element(By.CSS_SELECTOR, ".financial-kpis").text))
             passed.append("financial P&L and cash-flow cards contain calculated values")
 
+        driver.execute_script("window.scrollTo(0, 0)")
         income_link = present('a.kpi-link[href*="kind=income"]')
         expected_month = income_link.get_attribute("href").split("month=", 1)[1]
         income_link.click()

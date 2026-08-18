@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useI18n } from '@/i18n'
 import { useAuth } from '@/lib/authContext'
 import { AppShell } from '@/components/layout/AppShell'
@@ -18,10 +18,44 @@ import { Link } from '@/router'
 
 type FinancialTab = 'pnl' | 'cashflow' | 'balance'
 
+function todayTashkent(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value
+  return `${value('year')}-${value('month')}-${value('day')}`
+}
+
+function rangeForMonth(month: string): { start: string; end: string } {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  const monthEnd = `${month}-${String(lastDay).padStart(2, '0')}`
+  const today = todayTashkent()
+  return { start: `${month}-01`, end: month === currentMonthTashkent() ? today : monthEnd }
+}
+
+function dailySeries(
+  source: DashboardSummary['income_vs_expense_by_day'],
+  start: string,
+  end: string,
+): DashboardSummary['income_vs_expense_by_day'] {
+  const byDate = new Map(source.map((point) => [point.date, point]))
+  const result: DashboardSummary['income_vs_expense_by_day'] = []
+  const cursor = new Date(`${start}T00:00:00Z`)
+  const final = new Date(`${end}T00:00:00Z`)
+  while (cursor <= final) {
+    const date = cursor.toISOString().slice(0, 10)
+    result.push(byDate.get(date) ?? { date, income_uzs: 0, expense_uzs: 0 })
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return result
+}
+
 export function DashboardPage() {
   const { t } = useI18n()
   const { session } = useAuth()
   const [month, setMonth] = useState(currentMonthTashkent())
+  const [dateRange, setDateRange] = useState(() => rangeForMonth(currentMonthTashkent()))
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [financial, setFinancial] = useState<FinancialOverview | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -44,6 +78,22 @@ export function DashboardPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    setDateRange(rangeForMonth(month))
+  }, [month])
+
+  const chartData = useMemo(
+    () => dailySeries(data?.income_vs_expense_by_day ?? [], dateRange.start, dateRange.end),
+    [data?.income_vs_expense_by_day, dateRange.end, dateRange.start],
+  )
+
+  const setLastSevenDays = () => {
+    const bounds = rangeForMonth(month)
+    const start = new Date(`${bounds.end}T00:00:00Z`)
+    start.setUTCDate(start.getUTCDate() - 6)
+    setDateRange({ start: start.toISOString().slice(0, 10) < bounds.start ? bounds.start : start.toISOString().slice(0, 10), end: bounds.end })
+  }
 
   const balanceCash = financial
     ? financial.balance.cash_uzs + financial.balance.bank_uzs
@@ -88,8 +138,19 @@ export function DashboardPage() {
 
           <div className="dashboard-grid">
             <Card>
-              <h3 className="card-title">{t('dashboard.incomeVsExpense')}</h3>
-              <IncomeExpenseChart data={data.income_vs_expense_by_day} incomeLabel={t('dashboard.income')} expenseLabel={t('dashboard.expense')} />
+              <div className="chart-card-header">
+                <div>
+                  <h3 className="card-title">{t('dashboard.incomeVsExpense')}</h3>
+                  <span className="chart-range-caption">{dateRange.start} — {dateRange.end}</span>
+                </div>
+                <div className="chart-date-filters" aria-label={t('dashboard.dateRange')}>
+                  <label>{t('tx.dateFrom')}<input type="date" min={`${month}-01`} max={dateRange.end} value={dateRange.start} onChange={(event) => setDateRange((current) => ({ start: event.target.value, end: event.target.value > current.end ? event.target.value : current.end }))} /></label>
+                  <label>{t('tx.dateTo')}<input type="date" min={dateRange.start} max={rangeForMonth(month).end} value={dateRange.end} onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))} /></label>
+                  <Button type="button" variant="ghost" onClick={setLastSevenDays}>{t('dashboard.last7Days')}</Button>
+                  <Button type="button" variant="ghost" onClick={() => setDateRange(rangeForMonth(month))}>{t('dashboard.fullMonth')}</Button>
+                </div>
+              </div>
+              <IncomeExpenseChart data={chartData} incomeLabel={t('dashboard.income')} expenseLabel={t('dashboard.expense')} />
             </Card>
             <Card>
               <h3 className="card-title">{t('dashboard.expenseByCategory')}</h3>

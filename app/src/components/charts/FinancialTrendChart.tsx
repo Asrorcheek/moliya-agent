@@ -1,4 +1,5 @@
-import { formatUzsCompact } from '@/lib/format'
+import { useState } from 'react'
+import { formatUzs, formatUzsCompact } from '@/lib/format'
 import type { FinancialTrendPoint } from '@/lib/types'
 
 type NumericKey = {
@@ -16,6 +17,7 @@ interface Series {
  * left-to-right draw-on animation so the trend reads as a movement rather
  * than a static shape. */
 export function FinancialTrendChart({ data, series }: { data: FinancialTrendPoint[]; series: Series[] }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const width = 1180
   const height = 292
   const padding = { top: 20, right: 14, bottom: 34, left: 14 }
@@ -28,9 +30,19 @@ export function FinancialTrendChart({ data, series }: { data: FinancialTrendPoin
   const x = (index: number) => padding.left + (index / Math.max(1, data.length - 1)) * (width - padding.left - padding.right)
   const zeroY = y(0)
   const gridLines = [0.25, 0.5, 0.75]
+  const active = activeIndex === null ? null : data[activeIndex]
+  const activeX = activeIndex === null ? 50 : Math.min(82, Math.max(18, (x(activeIndex) / width) * 100))
 
   return (
-    <div>
+    <div className="chart-interactive" onMouseLeave={() => setActiveIndex(null)}>
+      {active && (
+        <div className="chart-tooltip chart-tooltip-wide" style={{ left: `${activeX}%` }} role="status">
+          <strong>{active.month}</strong>
+          {series.map((item) => (
+            <span key={item.key}><i style={{ background: item.color }} />{item.label}<b>{formatUzs(Number(active[item.key]))}</b></span>
+          ))}
+        </div>
+      )}
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={series.map((item) => item.label).join(', ')}>
         <defs>
           <linearGradient id="moliya-trend-area" x1="0" y1="0" x2="0" y2="1">
@@ -100,10 +112,30 @@ export function FinancialTrendChart({ data, series }: { data: FinancialTrendPoin
                   stroke={item.color}
                   strokeWidth="2"
                 >
-                  <title>{`${point.month} · ${item.label}: ${formatUzsCompact(Number(point[item.key]))}`}</title>
                 </circle>
               ))}
             </g>
+          )
+        })}
+
+        {data.map((point, index) => {
+          const bandWidth = (width - padding.left - padding.right) / Math.max(1, data.length)
+          return (
+            <rect
+              key={`hit-${point.month}`}
+              className="chart-hit-area financial-chart-hit-area"
+              x={Math.max(padding.left, x(index) - bandWidth / 2)}
+              y={padding.top}
+              width={bandWidth}
+              height={chartHeight}
+              fill="transparent"
+              tabIndex={0}
+              role="button"
+              aria-label={`${point.month}: ${series.map((item) => `${item.label} ${formatUzs(Number(point[item.key]))}`).join(', ')}`}
+              onMouseEnter={() => setActiveIndex(index)}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+            />
           )
         })}
 
