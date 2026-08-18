@@ -15,6 +15,7 @@ const KINDS: EntryKind[] = ['income', 'expense', 'refund', 'cost_of_goods', 'rec
 const METHODS: PaymentMethod[] = ['cash', 'card', 'transfer', 'mixed', 'unknown']
 
 interface TransactionFilters {
+  month?: string
   search?: string
   dateFrom?: string
   dateTo?: string
@@ -24,12 +25,22 @@ interface TransactionFilters {
   counterparty?: string
 }
 
+function filtersFromUrl(): TransactionFilters {
+  const params = new URLSearchParams(window.location.search)
+  const kind = params.get('kind')
+  const month = params.get('month')
+  return {
+    type: kind && KINDS.includes(kind as EntryKind) ? kind : undefined,
+    month: month && /^\d{4}-\d{2}$/.test(month) ? month : undefined,
+  }
+}
+
 export function TransactionsPage() {
   const { t } = useI18n()
   const { session } = useAuth()
   const [items, setItems] = useState<TransactionEntry[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [filters, setFilters] = useState<TransactionFilters>({})
+  const [filters, setFilters] = useState<TransactionFilters>(filtersFromUrl)
   const [selected, setSelected] = useState<TransactionEntry | null>(null)
 
   const load = (f: TransactionFilters) => {
@@ -37,6 +48,7 @@ export function TransactionsPage() {
     setStatus('loading')
     moliyaApi
       .listTransactions(session.actorId, {
+        month: f.month,
         kind: f.type as EntryKind | undefined,
         paymentMethod: f.paymentMethod as PaymentMethod | undefined,
       })
@@ -73,6 +85,13 @@ export function TransactionsPage() {
     load(merged)
   }
 
+  const clearFilters = () => {
+    const empty: TransactionFilters = {}
+    window.history.replaceState({}, '', '/transactions')
+    setFilters(empty)
+    load(empty)
+  }
+
   const exportCsv = () => {
     const escape = (value: string | number | null) => `"${String(value ?? '').replaceAll('"', '""')}"`
     const rows = [
@@ -96,38 +115,45 @@ export function TransactionsPage() {
             <i className="ti ti-search" aria-hidden="true" />
             <input
               placeholder={t('tx.searchName')}
+              value={filters.search ?? ''}
               onChange={(e) => applyFilters({ search: e.target.value || undefined })}
             />
           </label>
           <input
             placeholder={t('tx.counterparty')}
+            value={filters.counterparty ?? ''}
             onChange={(e) => applyFilters({ counterparty: e.target.value || undefined })}
             style={fieldStyle}
           />
           <input
             placeholder={t('tx.category')}
+            value={filters.category ?? ''}
             onChange={(e) => applyFilters({ category: e.target.value || undefined })}
             style={fieldStyle}
           />
-          <select onChange={(e) => applyFilters({ type: e.target.value || undefined })} style={fieldStyle} defaultValue="">
+          <select aria-label={t('tx.type')} onChange={(e) => applyFilters({ type: e.target.value || undefined })} style={fieldStyle} value={filters.type ?? ''}>
             <option value="">{t('tx.type')}</option>
             {KINDS.map((k) => (
               <option key={k} value={k}>{t(`entryKind.${k}` as const)}</option>
             ))}
           </select>
-          <select onChange={(e) => applyFilters({ paymentMethod: e.target.value || undefined })} style={fieldStyle} defaultValue="">
+          <select aria-label={t('tx.paymentMethod')} onChange={(e) => applyFilters({ paymentMethod: e.target.value || undefined })} style={fieldStyle} value={filters.paymentMethod ?? ''}>
             <option value="">{t('tx.paymentMethod')}</option>
             {METHODS.map((m) => (
               <option key={m} value={m}>{t(`payment.${m}` as const)}</option>
             ))}
           </select>
-          <input type="date" onChange={(e) => applyFilters({ dateFrom: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateRange')} />
-          <input type="date" onChange={(e) => applyFilters({ dateTo: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateRange')} />
+          <input type="month" value={filters.month ?? ''} onChange={(e) => applyFilters({ month: e.target.value || undefined })} style={fieldStyle} aria-label={t('dashboard.month')} />
+          <input type="date" value={filters.dateFrom ?? ''} onChange={(e) => applyFilters({ dateFrom: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateFrom')} />
+          <input type="date" value={filters.dateTo ?? ''} onChange={(e) => applyFilters({ dateTo: e.target.value || undefined })} style={fieldStyle} aria-label={t('tx.dateTo')} />
         </div>
-        <div style={{ marginTop: 'var(--space-3)' }}>
+        <div style={{ marginTop: 'var(--space-3)', display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           <Button variant="ghost" onClick={exportCsv} disabled={items.length === 0}>
             <i className="ti ti-download" aria-hidden="true" /> {t('common.export')}
           </Button>
+          {Object.values(filters).some(Boolean) && (
+            <Button variant="ghost" onClick={clearFilters}>{t('tx.clearFilters')}</Button>
+          )}
         </div>
       </Card>
 

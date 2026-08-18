@@ -3,6 +3,8 @@ import type { UserRole } from './types'
 import { ApiError, moliyaApi, UNAUTHORIZED_EVENT } from './apiClient'
 
 export interface Session {
+  userId: string
+  username: string
   actorId: string
   displayName: string
   role: UserRole
@@ -17,8 +19,10 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function toSession(response: { display_name: string; actor_id: string; role: UserRole }): Session {
+function toSession(response: { user_id: string; username: string; display_name: string; actor_id: string; role: UserRole }): Session {
   return {
+    userId: response.user_id,
+    username: response.username,
     actorId: response.actor_id,
     displayName: response.display_name,
     role: response.role,

@@ -77,6 +77,33 @@ def run_browser(base_url: str) -> list[str]:
         driver.find_element(By.CSS_SELECTOR, "form button[type=submit]").click()
         present(".floating-add-button")
 
+        income_link = present('a.kpi-link[href*="kind=income"]')
+        expected_month = income_link.get_attribute("href").split("month=", 1)[1]
+        income_link.click()
+        path_ends_with("/transactions")
+        wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, 'select[aria-label]').get_attribute("value") == "income")
+        assert driver.find_element(By.CSS_SELECTOR, 'input[type="month"]').get_attribute("value") == expected_month
+        passed.append("income KPI opens transactions with exact kind and month filters")
+
+        driver.get(base_url)
+        present('a.kpi-link[href*="kind=expense"]').click()
+        path_ends_with("/transactions")
+        wait.until(lambda browser: any(
+            field.get_attribute("value") == "expense"
+            for field in browser.find_elements(By.CSS_SELECTOR, "select")
+        ))
+        passed.append("expense KPI opens transactions with exact kind filter")
+
+        driver.get(base_url)
+        present(".sidebar-profile-link").click()
+        path_ends_with("/profile")
+        present(".profile-page")
+        assert "admin" in present(".profile-details").text.lower()
+        passed.append("sidebar account opens the personal profile")
+
+        driver.get(base_url)
+        present(".floating-add-button")
+
         driver.find_element(By.CSS_SELECTOR, ".floating-add-button").click()
         path_ends_with("/add")
         present(".add-page-toolbar .icon-button").click()

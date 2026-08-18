@@ -29,9 +29,10 @@ export function RouterProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const navigate = (to: string) => {
-    if (to === path) return
+    const target = new URL(to, window.location.href)
+    if (`${target.pathname}${target.search}` === `${window.location.pathname}${window.location.search}`) return
     window.history.pushState({}, '', to)
-    setPath(to)
+    setPath(target.pathname)
   }
 
   return <RouterContext.Provider value={{ path, navigate }}>{children}</RouterContext.Provider>

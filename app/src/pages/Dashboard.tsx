@@ -66,8 +66,20 @@ export function DashboardPage() {
           </div>
 
           <div className="dashboard-kpi-grid">
-            <StatCard label={t('dashboard.income')} value={data.income_uzs} tone="positive" />
-            <StatCard label={t('dashboard.expense')} value={data.expense_uzs} tone="negative" />
+            <Link
+              to={`/transactions?kind=income&month=${month}`}
+              className="kpi-link"
+              aria-label={`${t('dashboard.income')} — ${t('common.filter')}`}
+            >
+              <StatCard label={t('dashboard.income')} value={data.income_uzs} tone="positive" />
+            </Link>
+            <Link
+              to={`/transactions?kind=expense&month=${month}`}
+              className="kpi-link"
+              aria-label={`${t('dashboard.expense')} — ${t('common.filter')}`}
+            >
+              <StatCard label={t('dashboard.expense')} value={data.expense_uzs} tone="negative" />
+            </Link>
             <StatCard label={t('dashboard.netProfit')} value={data.net_profit_uzs} tone={data.net_profit_uzs < 0 ? 'negative' : 'positive'} />
             <StatCard label={t('dashboard.cashBalance')} value={balanceCash} tone={balanceCash < 0 ? 'negative' : 'neutral'} />
           </div>

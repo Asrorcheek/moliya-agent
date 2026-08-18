@@ -77,7 +77,10 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
 
         {session && (
           <div className="mobile-menu-account">
-            <span>{session.displayName}</span>
+            <Link to="/profile" onClick={onClose} className="mobile-profile-link">
+              <span className="sidebar-account-avatar">{session.displayName.slice(0, 1).toUpperCase()}</span>
+              <span><strong>{session.displayName}</strong><small>{t('nav.profile')}</small></span>
+            </Link>
             <button
               onClick={() => {
                 logout()

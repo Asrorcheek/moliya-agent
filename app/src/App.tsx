@@ -10,6 +10,7 @@ import { ReportsPage } from '@/pages/Reports'
 import { AuditLogPage } from '@/pages/AuditLog'
 import { SettingsPage } from '@/pages/Settings'
 import { UsersPage } from '@/pages/Users'
+import { ProfilePage } from '@/pages/Profile'
 import { LoadingState, PermissionDeniedState } from '@/components/ui/States'
 import { AppShell } from '@/components/layout/AppShell'
 import { useI18n } from '@/i18n'
@@ -23,6 +24,7 @@ const ROUTES: Record<string, () => ReactElement> = {
   '/audit': AuditLogPage,
   '/users': UsersPage,
   '/settings': SettingsPage,
+  '/profile': ProfilePage,
 }
 
 export function App() {

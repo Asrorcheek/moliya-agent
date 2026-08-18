@@ -44,14 +44,21 @@ export function Sidebar() {
 
       {session && (
         <div className="sidebar-account">
-          <span className="sidebar-account-avatar">{session.displayName.slice(0, 1).toUpperCase()}</span>
-          <div><strong>{session.displayName}</strong>
+          <Link to="/profile" className="sidebar-profile-link" aria-label={t('nav.profile')}>
+            <span className="sidebar-account-avatar">{session.displayName.slice(0, 1).toUpperCase()}</span>
+            <span className="sidebar-account-copy">
+              <strong>{session.displayName}</strong>
+              <small>{t('nav.profile')}</small>
+            </span>
+          </Link>
           <button
+            className="sidebar-logout-button"
             onClick={logout}
+            aria-label={t('nav.logout')}
+            title={t('nav.logout')}
           >
-            {t('nav.logout')}
+            <NavIcon name="logout" size={18} />
           </button>
-          </div>
         </div>
       )}
     </aside>
