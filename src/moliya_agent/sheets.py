@@ -261,7 +261,10 @@ class GoogleSheetsWriter:
                 .batchGet(
                     spreadsheetId=self._spreadsheet_id,
                     ranges=["'P&L'!A5:H64", "'Cash Flow'!A5:I64", "'Balance'!A4:B18"],
-                    valueRenderOption="UNFORMATTED_VALUE",
+                    # Month cells are formatted as YYYY-MM dates in Google Sheets.
+                    # UNFORMATTED_VALUE turns them into serials (for example 46235),
+                    # which cannot match the API's YYYY-MM month key.
+                    valueRenderOption="FORMATTED_VALUE",
                 )
                 .execute()
             )
